@@ -25,7 +25,14 @@
     "loginTitle": "С возвращением",
     "loginSubtitle": "Войдите в свой аккаунт",
     "registerTitle": "Создать аккаунт",
-    "registerSubtitle": "Начните оценивать проекты вместе с командой"
+    "registerSubtitle": "Начните оценивать проекты вместе с командой",
+    "loading": "Загрузка...",
+    "error": {
+      "invalidCredentials": "Неверный email или пароль",
+      "emailTaken": "Email уже зарегистрирован",
+      "generic": "Произошла ошибка, попробуйте снова",
+      "required": "Заполните все поля"
+    }
   },
   "landing": {
     "title": "EstimatePro",

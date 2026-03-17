@@ -4,11 +4,42 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
 };
 
+// ---------------------------------------------------------------------------
+// Token helpers — used by auth store and api-client internals
+// ---------------------------------------------------------------------------
+
+const ACCESS_TOKEN_KEY = "ep_access_token";
+const REFRESH_TOKEN_KEY = "ep_refresh_token";
+
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function clearTokens(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// Silent token refresh (singleton to avoid parallel refreshes)
+// ---------------------------------------------------------------------------
+
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
 async function tryRefreshToken(): Promise<boolean> {
-  const refreshToken = localStorage.getItem("refresh_token");
+  const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
   try {
@@ -21,8 +52,7 @@ async function tryRefreshToken(): Promise<boolean> {
     if (!res.ok) return false;
 
     const data = await res.json();
-    localStorage.setItem("access_token", data.access_token);
-    localStorage.setItem("refresh_token", data.refresh_token);
+    setTokens(data.access_token, data.refresh_token);
     return true;
   } catch {
     return false;
@@ -38,6 +68,10 @@ async function refreshOnce(): Promise<boolean> {
   });
   return refreshPromise;
 }
+
+// ---------------------------------------------------------------------------
+// Generic API client
+// ---------------------------------------------------------------------------
 
 export async function apiClient<T>(
   path: string,
@@ -55,10 +89,7 @@ export async function apiClient<T>(
       ),
     };
 
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("access_token")
-        : null;
+    const token = getAccessToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -79,8 +110,7 @@ export async function apiClient<T>(
       response = await doFetch();
     } else {
       // Refresh failed — clear tokens, redirect to login
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+      clearTokens();
       window.location.href = "/login";
       throw new ApiError(401, "UNAUTHORIZED", "Session expired");
     }

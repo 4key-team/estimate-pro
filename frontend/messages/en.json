@@ -25,7 +25,14 @@
     "loginTitle": "Welcome back",
     "loginSubtitle": "Sign in to your account",
     "registerTitle": "Create account",
-    "registerSubtitle": "Start estimating projects with your team"
+    "registerSubtitle": "Start estimating projects with your team",
+    "loading": "Loading...",
+    "error": {
+      "invalidCredentials": "Invalid email or password",
+      "emailTaken": "Email already registered",
+      "generic": "An error occurred, please try again",
+      "required": "Please fill in all fields"
+    }
   },
   "landing": {
     "title": "EstimatePro",

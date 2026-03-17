@@ -1,6 +1,21 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient, setTokens, clearTokens } from "@/lib/api-client";
 
-export interface AuthUser {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+}
+
+export interface User {
   id: string;
   email: string;
   name: string;
@@ -8,49 +23,53 @@ export interface AuthUser {
 }
 
 export interface AuthResponse {
-  user: AuthUser;
+  user: User;
   access_token: string;
   refresh_token: string;
 }
 
-export async function registerUser(data: {
-  email: string;
-  password: string;
-  name: string;
-}) {
-  const res = await apiClient<AuthResponse>("/api/v1/auth/register", {
-    method: "POST",
-    body: data,
-  });
-  localStorage.setItem("access_token", res.access_token);
-  localStorage.setItem("refresh_token", res.refresh_token);
-  localStorage.setItem("user_name", res.user.name);
-  localStorage.setItem("user_email", res.user.email);
-  localStorage.setItem("user_id", res.user.id);
-  return res;
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
 }
 
-export async function loginUser(data: { email: string; password: string }) {
+// ---------------------------------------------------------------------------
+// API functions
+// ---------------------------------------------------------------------------
+
+export async function login(data: LoginRequest): Promise<AuthResponse> {
   const res = await apiClient<AuthResponse>("/api/v1/auth/login", {
     method: "POST",
     body: data,
   });
-  localStorage.setItem("access_token", res.access_token);
-  localStorage.setItem("refresh_token", res.refresh_token);
-  localStorage.setItem("user_name", res.user.name);
-  localStorage.setItem("user_email", res.user.email);
-  localStorage.setItem("user_id", res.user.id);
+  setTokens(res.access_token, res.refresh_token);
   return res;
 }
 
-export async function getMe() {
-  return apiClient<AuthUser>("/api/v1/auth/me");
+export async function register(data: RegisterRequest): Promise<AuthResponse> {
+  const res = await apiClient<AuthResponse>("/api/v1/auth/register", {
+    method: "POST",
+    body: data,
+  });
+  setTokens(res.access_token, res.refresh_token);
+  return res;
 }
 
-export function logout() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-  localStorage.removeItem("user_name");
-  localStorage.removeItem("user_email");
-  localStorage.removeItem("user_id");
+export async function refreshTokens(
+  refreshToken: string
+): Promise<TokenResponse> {
+  const res = await apiClient<TokenResponse>("/api/v1/auth/refresh", {
+    method: "POST",
+    body: { refresh_token: refreshToken },
+  });
+  setTokens(res.access_token, res.refresh_token);
+  return res;
+}
+
+export async function getCurrentUser(): Promise<User> {
+  return apiClient<User>("/api/v1/auth/me");
+}
+
+export function logout(): void {
+  clearTokens();
 }
