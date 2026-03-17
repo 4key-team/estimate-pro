@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { registerUser } from "@/features/auth/api";
+import { register } from "@/features/auth/api";
 
 export default function RegisterPage() {
   const t = useTranslations("auth");
@@ -35,7 +35,7 @@ export default function RegisterPage() {
     const password = formData.get("password") as string;
 
     try {
-      await registerUser({ email, password, name });
+      await register({ email, password, name });
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
