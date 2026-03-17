@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
+import { useAuthStore } from "@/features/auth/store";
 import {
   Plus,
   FolderKanban,
@@ -18,15 +19,11 @@ import { CreateProjectDialog } from "@/features/projects/components/create-proje
 
 export default function DashboardPage() {
   const t = useTranslations();
-  const [name, setName] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const user = useAuthStore((s) => s.user);
 
-  useEffect(() => {
-    setName(localStorage.getItem("user_name") ?? "");
-  }, []);
-
-  const greeting = name
-    ? t("dashboard.welcomeBack", { name })
+  const greeting = user?.name
+    ? t("dashboard.welcomeBack", { name: user.name })
     : t("dashboard.welcome");
 
   // Fetch workspaces
