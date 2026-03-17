@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import { logout } from "@/features/auth/api";
+import { AuthGuard } from "@/features/auth/components/auth-guard";
+import { useAuthStore } from "@/features/auth/store";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -28,9 +29,10 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const logoutUser = useAuthStore((s) => s.logoutUser);
 
   const handleLogout = () => {
-    logout();
+    logoutUser();
     router.push("/");
   };
 
@@ -67,7 +69,8 @@ export default function DashboardLayout({
   ];
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-background">
+    <AuthGuard>
+      <div className="flex flex-col h-screen overflow-hidden bg-background">
       {/* Top header bar — full width */}
       <header className="flex items-center justify-between py-3 pr-4 bg-background z-10 flex-shrink-0">
         <div className="flex items-center">
@@ -131,6 +134,7 @@ export default function DashboardLayout({
           <div className="relative max-w-6xl mx-auto p-6 md:p-8">{children}</div>
         </main>
       </div>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

@@ -1,0 +1,60 @@
+"use client";
+
+import { create } from "zustand";
+import { getAccessToken } from "@/lib/api-client";
+import {
+  login,
+  register,
+  logout,
+  getCurrentUser,
+  type User,
+  type LoginRequest,
+  type RegisterRequest,
+} from "./api";
+
+interface AuthState {
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  initialize: () => Promise<void>;
+  loginUser: (data: LoginRequest) => Promise<void>;
+  registerUser: (data: RegisterRequest) => Promise<void>;
+  logoutUser: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  isLoading: true,
+  isAuthenticated: false,
+
+  initialize: async () => {
+    const token = getAccessToken();
+    if (!token) {
+      set({ user: null, isAuthenticated: false, isLoading: false });
+      return;
+    }
+
+    try {
+      const user = await getCurrentUser();
+      set({ user, isAuthenticated: true, isLoading: false });
+    } catch {
+      logout();
+      set({ user: null, isAuthenticated: false, isLoading: false });
+    }
+  },
+
+  loginUser: async (data: LoginRequest) => {
+    const res = await login(data);
+    set({ user: res.user, isAuthenticated: true });
+  },
+
+  registerUser: async (data: RegisterRequest) => {
+    const res = await register(data);
+    set({ user: res.user, isAuthenticated: true });
+  },
+
+  logoutUser: () => {
+    logout();
+    set({ user: null, isAuthenticated: false });
+  },
+}));
