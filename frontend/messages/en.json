@@ -1,0 +1,187 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading...",
+    "error": "Error",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "submit": "Submit"
+  },
+  "auth": {
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "register": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "orContinueWith": "Or continue with",
+    "google": "Google",
+    "github": "GitHub",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Sign in to your account",
+    "registerTitle": "Create account",
+    "registerSubtitle": "Start estimating projects with your team"
+  },
+  "landing": {
+    "title": "EstimatePro",
+    "subtitle": "Collaborative project estimation platform",
+    "cta": "Get Started Free",
+    "ctaSecondary": "Learn More",
+    "nav": {
+      "features": "Features",
+      "how": "How It Works",
+      "login": "Sign In",
+      "stats": "Stats"
+    },
+    "hero": {
+      "line1": "Project estimation —",
+      "line2": "simple & accurate",
+      "subtitle": "Upload specs in any format, collect team estimates, and get automatic aggregation. Full version history and estimates — all in one place."
+    },
+    "features": {
+      "upload": "Any Format",
+      "uploadDesc": "Upload specs in PDF, DOCX, XLSX, Markdown — the system auto-parses and extracts tasks.",
+      "collaborate": "Team Collaboration",
+      "collaborateDesc": "PM creates a project, invites developers — everyone submits their estimate independently.",
+      "aggregate": "Smart Aggregation",
+      "aggregateDesc": "Summary table with avg, min, max per task. See estimation discrepancies instantly.",
+      "roles": "Flexible Roles",
+      "rolesDesc": "Admin, PM, Tech Lead, Developer, Observer — each role sees only what they need.",
+      "versions": "Version Control",
+      "versionsDesc": "Complete history of uploads and document changes. Timeline for every spec version.",
+      "i18n": "Multilingual",
+      "i18nDesc": "Interface in Russian and English. Notifications in the user's preferred language."
+    },
+    "stats": {
+      "formatsValue": "6+",
+      "formatsLabel": "file formats",
+      "rolesValue": "5",
+      "rolesLabel": "system roles",
+      "realtimeValue": "∞",
+      "realtimeLabel": "concurrent projects"
+    },
+    "confetti": ["Wow!", "Cool!", "Amazing!", "Great!", "Awesome!", "Nice!"],
+    "footer": {
+      "description": "Collaborative project estimation platform. Upload specs, collect team estimates, get aggregation.",
+      "features": "Features",
+      "pricing": "Pricing",
+      "docs": "Documentation",
+      "support": "Support",
+      "privacy": "Privacy",
+      "terms": "Terms"
+    }
+  },
+  "projects": {
+    "title": "Projects",
+    "create": "Create Project",
+    "empty": "No projects",
+    "emptyDesc": "Create your first project and invite your team for estimation",
+    "name": "Name",
+    "description": "Description",
+    "status": "Status",
+    "members": "Members",
+    "documents": "Documents",
+    "estimations": "Estimations",
+    "active": "Active",
+    "archived": "Archived",
+    "archive": "Archive",
+    "restore": "Restore",
+    "inReview": "In Review",
+    "planning": "Planning",
+    "createTitle": "Create Project",
+    "createDesc": "Enter a name and description for your new project",
+    "namePlaceholder": "Project name",
+    "descriptionPlaceholder": "Project description (optional)",
+    "cancel": "Cancel",
+    "creating": "Creating...",
+    "tabs": {
+      "overview": "Overview",
+      "documents": "Documents",
+      "members": "Members"
+    },
+    "addMember": "Add Member",
+    "removeMember": "Remove",
+    "memberRole": "Role",
+    "noMembers": "No members",
+    "noMembersDesc": "Add project members to collaborate on estimations",
+    "inviteTitle": "Add Member",
+    "inviteDesc": "Enter the email and role of the new member",
+    "email": "Member email",
+    "emailPlaceholder": "user@example.com",
+    "selectRole": "Select role",
+    "adding": "Adding...",
+    "comingSoon": "Coming soon",
+    "createdAt": "Created",
+    "timeline": {
+      "created": "Created",
+      "createdDesc": "Project created and ready for setup",
+      "team": "Team",
+      "teamDesc": "Add members and assign roles",
+      "documents": "Documents",
+      "documentsDesc": "Upload specs and project documentation",
+      "estimation": "Estimation",
+      "estimationDesc": "Team members submit their task estimates",
+      "review": "Review",
+      "reviewDesc": "View summary table and aggregated estimates"
+    },
+    "memberEmail": "Member email",
+    "memberEmailPlaceholder": "email@example.com",
+    "memberAdded": "Member added",
+    "memberRemoved": "Member removed",
+    "confirmRemove": "Remove {name} from the project?",
+    "demo": {
+      "ecommerce": "E-commerce Platform",
+      "ecommerceDesc": "A modern e-commerce solution with payment integration",
+      "apiDocs": "API Documentation",
+      "apiDocsDesc": "Comprehensive API docs for the developer portal",
+      "designSystem": "Design System",
+      "designSystemDesc": "A unified design system for all company products"
+    }
+  },
+  "estimation": {
+    "submit": "Submit Estimate",
+    "aggregate": "Summary Table",
+    "hours": "hours",
+    "task": "Task",
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "confirmed": "Confirmed"
+  },
+  "roles": {
+    "admin": "Administrator",
+    "pm": "Project Manager",
+    "tech_lead": "Tech Lead",
+    "developer": "Developer",
+    "observer": "Observer"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "settings": "Settings",
+    "projects": "Projects",
+    "notifications": "Notifications",
+    "overview": "Workspace",
+    "welcome": "Welcome",
+    "welcomeBack": "Welcome back, {name}",
+    "welcomeSubtitle": "Here's what's happening with your projects"
+  },
+  "settings": {
+    "profile": "Profile",
+    "profileDesc": "Manage your profile information",
+    "namePlaceholder": "Your name",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themeDesc": "Toggle between light and dark mode",
+    "notificationsDesc": "Configure how you receive notifications",
+    "comingSoon": "Coming soon"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No new notifications",
+    "emptyDesc": "Notifications about events in your projects will appear here"
+  }
+}
