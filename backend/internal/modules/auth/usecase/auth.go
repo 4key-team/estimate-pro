@@ -202,7 +202,6 @@ func (uc *AuthUsecase) UploadAvatar(ctx context.Context, userID string, data []b
 }
 
 func (uc *AuthUsecase) GetAvatar(ctx context.Context, callerID, targetUserID string) ([]byte, string, error) {
-	// Allow own avatar
 	if callerID != targetUserID {
 		shared, err := uc.membershipChecker.ShareProject(ctx, callerID, targetUserID)
 		if err != nil || !shared {

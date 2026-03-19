@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { getAccessToken } from "@/lib/api-client";
 
 interface UserAvatarProps {
   name?: string | null;
@@ -25,7 +27,6 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-// Deterministic color from name
 function getColor(name: string): string {
   const colors = [
     "#8b5cf6", "#3b82f6", "#10b981", "#f59e0b",
@@ -43,6 +44,41 @@ export function UserAvatar({ name, avatarUrl, size = "md", className }: UserAvat
   const displayName = name || "?";
   const initials = getInitials(displayName);
   const bgColor = getColor(displayName);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!avatarUrl) {
+      setBlobUrl(null);
+      return;
+    }
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    let cancelled = false;
+    fetch(`${apiBase}${avatarUrl}`, { headers })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load avatar");
+        return res.blob();
+      })
+      .then((blob) => {
+        if (!cancelled) {
+          setBlobUrl(URL.createObjectURL(blob));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBlobUrl(null);
+      });
+
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [avatarUrl]);
 
   return (
     <div
@@ -51,11 +87,11 @@ export function UserAvatar({ name, avatarUrl, size = "md", className }: UserAvat
         sizeClasses[size],
         className,
       )}
-      style={{ backgroundColor: avatarUrl ? undefined : bgColor }}
+      style={{ backgroundColor: blobUrl ? undefined : bgColor }}
     >
-      {avatarUrl ? (
+      {blobUrl ? (
         <img
-          src={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}${avatarUrl}`}
+          src={blobUrl}
           alt={displayName}
           className="w-full h-full object-cover"
         />
