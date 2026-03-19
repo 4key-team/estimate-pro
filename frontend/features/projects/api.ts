@@ -39,12 +39,16 @@ export async function createProject(data: {
 }
 
 export async function listProjects(
-  workspaceId: string,
+  workspaceId?: string,
   page = 1,
   limit = 20
 ) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (workspaceId) {
+    params.set("workspace_id", workspaceId);
+  }
   return apiClient<ProjectListResponse>(
-    `/api/v1/projects?workspace_id=${workspaceId}&page=${page}&limit=${limit}`
+    `/api/v1/projects?${params.toString()}`
   );
 }
 

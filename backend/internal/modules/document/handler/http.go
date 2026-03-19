@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"github.com/daniilrusanov/estimate-pro/backend/internal/modules/document/usecase"
 	sharedErrors "github.com/daniilrusanov/estimate-pro/backend/internal/shared/errors"
 	"github.com/daniilrusanov/estimate-pro/backend/internal/shared/middleware"
+	"github.com/daniilrusanov/estimate-pro/backend/internal/shared/response"
 	"github.com/daniilrusanov/estimate-pro/backend/pkg/jwt"
 )
 
@@ -48,7 +48,7 @@ func (h *Handler) ListDocuments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, docs)
+	response.WriteJSON(w, http.StatusOK, docs)
 }
 
 func (h *Handler) UploadDocument(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +100,7 @@ func (h *Handler) UploadDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{
+	response.WriteJSON(w, http.StatusCreated, map[string]any{
 		"document": doc,
 		"version":  version,
 	})
@@ -119,7 +119,7 @@ func (h *Handler) GetDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, result)
+	response.WriteJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) DownloadDocument(w http.ResponseWriter, r *http.Request) {
@@ -165,9 +165,4 @@ func (h *Handler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}
 

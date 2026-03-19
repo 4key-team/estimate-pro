@@ -11,6 +11,7 @@ import (
 	"github.com/daniilrusanov/estimate-pro/backend/internal/modules/auth/usecase"
 	sharedErrors "github.com/daniilrusanov/estimate-pro/backend/internal/shared/errors"
 	"github.com/daniilrusanov/estimate-pro/backend/internal/shared/middleware"
+	"github.com/daniilrusanov/estimate-pro/backend/internal/shared/response"
 	"github.com/daniilrusanov/estimate-pro/backend/pkg/jwt"
 )
 
@@ -31,6 +32,7 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(jwtService))
 			r.Get("/me", h.Me)
+			r.Patch("/profile", h.UpdateProfile)
 		})
 	})
 }
@@ -83,7 +85,7 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, fullAuthResponse{
+	response.WriteJSON(w, http.StatusCreated, fullAuthResponse{
 		User:         toUserDTO(result.User),
 		AccessToken:  result.TokenPair.AccessToken,
 		RefreshToken: result.TokenPair.RefreshToken,
@@ -115,7 +117,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, fullAuthResponse{
+	response.WriteJSON(w, http.StatusOK, fullAuthResponse{
 		User:         toUserDTO(result.User),
 		AccessToken:  result.TokenPair.AccessToken,
 		RefreshToken: result.TokenPair.RefreshToken,
@@ -135,7 +137,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, AuthResponse{
+	response.WriteJSON(w, http.StatusOK, AuthResponse{
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
 	})
@@ -154,11 +156,35 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toUserDTO(user))
+	response.WriteJSON(w, http.StatusOK, toUserDTO(user))
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+type updateProfileRequest struct {
+	Name string `json:"name"`
 }
+
+func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+
+	var req updateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sharedErrors.BadRequest(w, "invalid request body")
+		return
+	}
+
+	user, err := h.uc.UpdateProfile(r.Context(), usecase.UpdateProfileInput{
+		UserID: userID,
+		Name:   req.Name,
+	})
+	if err != nil {
+		sharedErrors.InternalError(w, "failed to update profile")
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, toUserDTO(user))
+}
+

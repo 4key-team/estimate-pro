@@ -10,18 +10,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/daniilrusanov/estimate-pro/backend/internal/modules/auth/domain"
-	projectDomain "github.com/daniilrusanov/estimate-pro/backend/internal/modules/project/domain"
 	"github.com/daniilrusanov/estimate-pro/backend/pkg/jwt"
 )
 
 type AuthUsecase struct {
-	userRepo      domain.UserRepository
-	workspaceRepo projectDomain.WorkspaceRepository
-	jwtService    *jwt.Service
+	userRepo         domain.UserRepository
+	workspaceCreator domain.WorkspaceCreator
+	jwtService       *jwt.Service
 }
 
-func New(userRepo domain.UserRepository, workspaceRepo projectDomain.WorkspaceRepository, jwtService *jwt.Service) *AuthUsecase {
-	return &AuthUsecase{userRepo: userRepo, workspaceRepo: workspaceRepo, jwtService: jwtService}
+func New(userRepo domain.UserRepository, workspaceCreator domain.WorkspaceCreator, jwtService *jwt.Service) *AuthUsecase {
+	return &AuthUsecase{userRepo: userRepo, workspaceCreator: workspaceCreator, jwtService: jwtService}
 }
 
 type RegisterInput struct {
@@ -36,7 +35,10 @@ type AuthOutput struct {
 }
 
 func (uc *AuthUsecase) Register(ctx context.Context, input RegisterInput) (*AuthOutput, error) {
-	existing, _ := uc.userRepo.GetByEmail(ctx, input.Email)
+	existing, err := uc.userRepo.GetByEmail(ctx, input.Email)
+	if err != nil && !errors.Is(err, domain.ErrUserNotFound) {
+		return nil, fmt.Errorf("auth.Register: %w", err)
+	}
 	if existing != nil {
 		return nil, domain.ErrEmailTaken
 	}
@@ -62,13 +64,7 @@ func (uc *AuthUsecase) Register(ctx context.Context, input RegisterInput) (*Auth
 	}
 
 	// Auto-create personal workspace
-	workspace := &projectDomain.Workspace{
-		ID:        uuid.New().String(),
-		Name:      input.Name,
-		OwnerID:   user.ID,
-		CreatedAt: now,
-	}
-	if err := uc.workspaceRepo.Create(ctx, workspace); err != nil {
+	if err := uc.workspaceCreator.CreatePersonalWorkspace(ctx, user.ID, input.Name); err != nil {
 		return nil, fmt.Errorf("auth.Register create workspace: %w", err)
 	}
 
@@ -126,4 +122,27 @@ func (uc *AuthUsecase) Refresh(ctx context.Context, refreshToken string) (*jwt.T
 
 func (uc *AuthUsecase) GetCurrentUser(ctx context.Context, userID string) (*domain.User, error) {
 	return uc.userRepo.GetByID(ctx, userID)
+}
+
+type UpdateProfileInput struct {
+	UserID string
+	Name   string
+}
+
+func (uc *AuthUsecase) UpdateProfile(ctx context.Context, input UpdateProfileInput) (*domain.User, error) {
+	user, err := uc.userRepo.GetByID(ctx, input.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("auth.UpdateProfile: %w", err)
+	}
+
+	if input.Name != "" {
+		user.Name = input.Name
+	}
+	user.UpdatedAt = time.Now()
+
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("auth.UpdateProfile: %w", err)
+	}
+
+	return user, nil
 }

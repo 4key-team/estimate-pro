@@ -14,6 +14,7 @@ import (
 	sharedErrors "github.com/daniilrusanov/estimate-pro/backend/internal/shared/errors"
 	"github.com/daniilrusanov/estimate-pro/backend/internal/shared/middleware"
 	"github.com/daniilrusanov/estimate-pro/backend/internal/shared/pagination"
+	"github.com/daniilrusanov/estimate-pro/backend/internal/shared/response"
 	"github.com/daniilrusanov/estimate-pro/backend/pkg/jwt"
 )
 
@@ -66,7 +67,7 @@ func (h *Handler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, workspaces)
+	response.WriteJSON(w, http.StatusOK, workspaces)
 }
 
 type createWorkspaceRequest struct {
@@ -103,7 +104,7 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, workspace)
+	response.WriteJSON(w, http.StatusCreated, workspace)
 }
 
 type createProjectRequest struct {
@@ -141,7 +142,7 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, project)
+	response.WriteJSON(w, http.StatusCreated, project)
 }
 
 type projectListResponse struct {
@@ -151,24 +152,36 @@ type projectListResponse struct {
 
 func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	workspaceID := r.URL.Query().Get("workspace_id")
-	if workspaceID == "" {
-		sharedErrors.BadRequest(w, "workspace_id query param required")
-		return
-	}
-
 	p := pagination.Parse(r)
 
-	result, err := h.uc.List(r.Context(), usecase.ListProjectsInput{
-		WorkspaceID: workspaceID,
-		Limit:       p.Limit,
-		Offset:      p.Offset(),
-	})
+	var result *usecase.ListProjectsOutput
+	var err error
+
+	if workspaceID != "" {
+		result, err = h.uc.List(r.Context(), usecase.ListProjectsInput{
+			WorkspaceID: workspaceID,
+			Limit:       p.Limit,
+			Offset:      p.Offset(),
+		})
+	} else {
+		userID, ok := middleware.UserIDFromContext(r.Context())
+		if !ok {
+			sharedErrors.Unauthorized(w, "missing user context")
+			return
+		}
+		result, err = h.uc.ListByUser(r.Context(), usecase.ListByUserInput{
+			UserID: userID,
+			Limit:  p.Limit,
+			Offset: p.Offset(),
+		})
+	}
+
 	if err != nil {
 		sharedErrors.InternalError(w, "failed to list projects")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, projectListResponse{
+	response.WriteJSON(w, http.StatusOK, projectListResponse{
 		Projects: result.Projects,
 		Meta: pagination.Meta{
 			Total: result.Total,
@@ -187,7 +200,7 @@ func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, project)
+	response.WriteJSON(w, http.StatusOK, project)
 }
 
 type updateProjectRequest struct {
@@ -220,7 +233,7 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, project)
+	response.WriteJSON(w, http.StatusOK, project)
 }
 
 func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
@@ -237,7 +250,7 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, project)
+	response.WriteJSON(w, http.StatusOK, project)
 }
 
 func (h *Handler) RestoreProject(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +267,7 @@ func (h *Handler) RestoreProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, project)
+	response.WriteJSON(w, http.StatusOK, project)
 }
 
 type addMemberRequest struct {
@@ -300,7 +313,7 @@ func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+	response.WriteJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
@@ -343,11 +356,6 @@ func (h *Handler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, members)
+	response.WriteJSON(w, http.StatusOK, members)
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}

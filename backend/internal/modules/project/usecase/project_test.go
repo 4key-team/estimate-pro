@@ -61,6 +61,10 @@ func (m *testProjectRepo) ListByWorkspace(_ context.Context, _ string, limit, of
 	return m.list[offset:end], total, nil
 }
 
+func (m *testProjectRepo) ListByUser(_ context.Context, _ string, limit, offset int) ([]*domain.Project, int, error) {
+	return m.ListByWorkspace(context.Background(), "", limit, offset)
+}
+
 func (m *testProjectRepo) Update(_ context.Context, p *domain.Project) error {
 	m.projects[p.ID] = p
 	return nil
@@ -291,5 +295,47 @@ func TestRestore_Success(t *testing.T) {
 	stored := projectRepo.projects["p-1"]
 	if stored.Status != domain.ProjectStatusActive {
 		t.Fatalf("stored project status not active, got %q", stored.Status)
+	}
+}
+
+func TestListByUser_Success(t *testing.T) {
+	projectRepo := &testProjectRepo{
+		projects: make(map[string]*domain.Project),
+		list: []*domain.Project{
+			{ID: "p-1", Name: "Project 1"},
+			{ID: "p-2", Name: "Project 2"},
+		},
+	}
+	uc := usecase.New(projectRepo, &mockWorkspaceRepo{workspaces: make(map[string]*domain.Workspace)}, &mockMemberRepo{})
+
+	result, err := uc.ListByUser(t.Context(), usecase.ListByUserInput{UserID: "user-1", Limit: 20, Offset: 0})
+	if err != nil {
+		t.Fatalf("ListByUser() error: %v", err)
+	}
+	if len(result.Projects) != 2 {
+		t.Errorf("got %d projects, want 2", len(result.Projects))
+	}
+	if result.Total != 2 {
+		t.Errorf("total = %d, want 2", result.Total)
+	}
+}
+
+func TestUpdate_NotFound(t *testing.T) {
+	projectRepo := &testProjectRepo{projects: make(map[string]*domain.Project)}
+	uc := usecase.New(projectRepo, &mockWorkspaceRepo{workspaces: make(map[string]*domain.Workspace)}, &mockMemberRepo{})
+
+	_, err := uc.Update(t.Context(), usecase.UpdateProjectInput{ID: "nonexistent", Name: "new"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestArchive_NotFound(t *testing.T) {
+	projectRepo := &testProjectRepo{projects: make(map[string]*domain.Project)}
+	uc := usecase.New(projectRepo, &mockWorkspaceRepo{workspaces: make(map[string]*domain.Workspace)}, &mockMemberRepo{})
+
+	_, err := uc.Archive(t.Context(), "nonexistent", "user-1")
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }

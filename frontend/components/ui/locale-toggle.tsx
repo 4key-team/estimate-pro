@@ -9,13 +9,13 @@ export function LocaleToggle() {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   const nextLocale = locale === "ru" ? "en" : "ru";
 
   const switchLocale = () => {
     startTransition(() => {
-      router.replace(pathname, { locale: nextLocale });
+      router.replace(pathname, { locale: nextLocale, scroll: false });
     });
   };
 

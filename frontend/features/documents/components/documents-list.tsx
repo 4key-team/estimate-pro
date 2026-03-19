@@ -125,6 +125,7 @@ export function DocumentsList({ projectId }: DocumentsListProps) {
             <p className="text-xs text-destructive">{t("uploadError")}</p>
           )}
           <Button
+            variant="outline"
             size="sm"
             onClick={handleUploadClick}
             disabled={uploadMutation.isPending}

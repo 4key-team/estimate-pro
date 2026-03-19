@@ -20,6 +20,7 @@ interface AuthState {
   loginUser: (data: LoginRequest) => Promise<void>;
   registerUser: (data: RegisterRequest) => Promise<void>;
   logoutUser: () => void;
+  setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -31,6 +32,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     const token = getAccessToken();
     if (!token) {
       set({ user: null, isAuthenticated: false, isLoading: false });
+      return;
+    }
+
+    // If already authenticated, skip re-fetch (prevents flash on locale change)
+    const state = useAuthStore.getState();
+    if (state.isAuthenticated && state.user) {
+      set({ isLoading: false });
       return;
     }
 
@@ -56,5 +64,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   logoutUser: () => {
     logout();
     set({ user: null, isAuthenticated: false });
+  },
+
+  setUser: (user: User) => {
+    set({ user });
   },
 }));

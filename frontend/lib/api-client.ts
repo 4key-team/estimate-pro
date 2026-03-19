@@ -123,6 +123,10 @@ export async function apiClient<T>(
     throw new ApiError(response.status, error.error.code, error.error.message);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json();
 }
 

@@ -35,9 +35,8 @@ export default function ProjectsPage() {
   const workspaceId = workspaces?.[0]?.id;
 
   const { data: projectsData, isLoading } = useQuery({
-    queryKey: ["projects", workspaceId],
-    queryFn: () => listProjects(workspaceId!),
-    enabled: !!workspaceId,
+    queryKey: ["projects"],
+    queryFn: () => listProjects(),
   });
 
   const projects = projectsData?.projects ?? [];
@@ -79,7 +78,7 @@ export default function ProjectsPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
+        <Button variant="outline" onClick={() => setCreateOpen(true)} className="gap-2">
           <Plus className="h-4 w-4" />
           {t("create")}
         </Button>

@@ -1,0 +1,51 @@
+"use client";
+
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { EstimationList } from "./estimation-list";
+import { AggregatedView } from "./aggregated-view";
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+type SubTab = "my" | "aggregated";
+
+interface EstimationTabProps {
+  projectId: string;
+}
+
+export function EstimationTab({ projectId }: EstimationTabProps) {
+  const t = useTranslations("estimation");
+  const [subTab, setSubTab] = useState<SubTab>("my");
+
+  const subTabs: { key: SubTab; label: string }[] = [
+    { key: "my", label: t("myEstimations") },
+    { key: "aggregated", label: t("aggregate") },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tab navigation */}
+      <div className="flex gap-1">
+        {subTabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setSubTab(tab.key)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              subTab === tab.key
+                ? "border border-border text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      {subTab === "my" && <EstimationList projectId={projectId} />}
+      {subTab === "aggregated" && <AggregatedView projectId={projectId} />}
+    </div>
+  );
+}

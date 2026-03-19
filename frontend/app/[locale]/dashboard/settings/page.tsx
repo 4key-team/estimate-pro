@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Bell, Globe, User } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Bell, Globe, User, Check } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -14,25 +15,40 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAuthStore } from "@/features/auth/store";
+import { updateProfile } from "@/features/auth/api";
 
 export default function SettingsPage() {
   const t = useTranslations();
+  const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setName(localStorage.getItem("user_name") ?? "");
-    setEmail(localStorage.getItem("user_email") ?? "");
-  }, []);
+    if (user) {
+      setName(user.name);
+    }
+  }, [user]);
+
+  const mutation = useMutation({
+    mutationFn: (newName: string) => updateProfile({ name: newName }),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    },
+  });
 
   const handleSave = () => {
-    localStorage.setItem("user_name", name);
-    localStorage.setItem("user_email", email);
+    if (name.trim() && name !== user?.name) {
+      mutation.mutate(name.trim());
+    }
   };
 
   return (
     <div>
-      <h1 className="text-3xl font-bold tracking-tight mb-8 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold tracking-tight mb-8 max-w-2xl mx-auto">
         {t("dashboard.settings")}
       </h1>
 
@@ -61,12 +77,27 @@ export default function SettingsPage() {
               <Label>{t("auth.email")}</Label>
               <Input
                 type="email"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={user?.email ?? ""}
+                disabled
+                className="opacity-60"
               />
             </div>
-            <Button onClick={handleSave}>{t("common.save")}</Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleSave}
+                disabled={mutation.isPending || !name.trim() || name === user?.name}
+              >
+                {mutation.isPending ? t("common.loading") : t("common.save")}
+              </Button>
+              {saved && (
+                <span className="inline-flex items-center gap-1 text-sm text-emerald-500">
+                  <Check className="h-4 w-4" />
+                </span>
+              )}
+              {mutation.isError && (
+                <span className="text-sm text-destructive">{t("common.error")}</span>
+              )}
+            </div>
           </CardContent>
         </Card>
 

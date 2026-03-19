@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/daniilrusanov/estimate-pro/backend/internal/modules/project/domain"
@@ -87,6 +88,9 @@ func (m *mockProjectRepo) GetByID(_ context.Context, id string) (*domain.Project
 func (m *mockProjectRepo) ListByWorkspace(_ context.Context, _ string, _, _ int) ([]*domain.Project, int, error) {
 	return nil, 0, nil
 }
+func (m *mockProjectRepo) ListByUser(_ context.Context, _ string, _, _ int) ([]*domain.Project, int, error) {
+	return nil, 0, nil
+}
 func (m *mockProjectRepo) Update(_ context.Context, _ *domain.Project) error { return nil }
 func (m *mockProjectRepo) Delete(_ context.Context, _ string) error          { return nil }
 
@@ -130,7 +134,7 @@ func TestMemberUsecase_AddMember(t *testing.T) {
 		err := uc.AddMember(context.Background(), usecase.AddMemberInput{
 			ProjectID: "p-1", UserID: "dev-1", Role: domain.RoleDeveloper, CallerID: "admin-1",
 		})
-		if err != domain.ErrMemberAlreadyAdded {
+		if !errors.Is(err, domain.ErrMemberAlreadyAdded) {
 			t.Fatalf("expected ErrMemberAlreadyAdded, got: %v", err)
 		}
 	})

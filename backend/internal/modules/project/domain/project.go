@@ -16,6 +16,10 @@ func (r Role) CanManageMembers() bool {
 	return r == RoleAdmin || r == RolePM
 }
 
+func (r Role) CanEstimate() bool {
+	return r != RoleObserver
+}
+
 func (r Role) IsValid() bool {
 	switch r {
 	case RoleAdmin, RolePM, RoleTechLead, RoleDeveloper, RoleObserver:

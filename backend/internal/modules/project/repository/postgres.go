@@ -70,6 +70,37 @@ func (r *PostgresProjectRepository) ListByWorkspace(ctx context.Context, workspa
 	return projects, total, nil
 }
 
+func (r *PostgresProjectRepository) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*domain.Project, int, error) {
+	var total int
+	if err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM projects p INNER JOIN project_members pm ON p.id = pm.project_id WHERE pm.user_id = $1`,
+		userID,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("project.Repository.ListByUser count: %w", err)
+	}
+
+	query := `SELECT p.id, p.workspace_id, p.name, p.description, p.status, p.created_by, p.created_at, p.updated_at
+		FROM projects p
+		INNER JOIN project_members pm ON p.id = pm.project_id
+		WHERE pm.user_id = $1
+		ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+	rows, err := r.pool.Query(ctx, query, userID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("project.Repository.ListByUser: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []*domain.Project
+	for rows.Next() {
+		p := &domain.Project{}
+		if err := rows.Scan(&p.ID, &p.WorkspaceID, &p.Name, &p.Description, &p.Status, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, 0, fmt.Errorf("project.Repository.ListByUser scan: %w", err)
+		}
+		projects = append(projects, p)
+	}
+	return projects, total, nil
+}
+
 func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.Project) error {
 	query := `UPDATE projects SET name=$1, description=$2, status=$3, updated_at=$4 WHERE id=$5`
 	_, err := r.pool.Exec(ctx, query, project.Name, project.Description, project.Status, project.UpdatedAt, project.ID)

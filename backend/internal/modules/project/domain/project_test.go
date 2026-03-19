@@ -47,3 +47,23 @@ func TestRole_IsValid(t *testing.T) {
 		})
 	}
 }
+
+func TestRole_CanEstimate(t *testing.T) {
+	tests := []struct {
+		role domain.Role
+		want bool
+	}{
+		{domain.RoleAdmin, true},
+		{domain.RolePM, true},
+		{domain.RoleTechLead, true},
+		{domain.RoleDeveloper, true},
+		{domain.RoleObserver, false},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.role), func(t *testing.T) {
+			if got := tt.role.CanEstimate(); got != tt.want {
+				t.Errorf("Role(%q).CanEstimate() = %v, want %v", tt.role, got, tt.want)
+			}
+		})
+	}
+}

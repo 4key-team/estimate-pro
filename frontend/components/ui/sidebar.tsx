@@ -93,9 +93,11 @@ export const DesktopSidebar = ({
         "h-full pt-1 pb-4 hidden md:flex md:flex-col w-[300px] flex-shrink-0 overflow-hidden",
         className
       )}
+      initial={false}
       animate={{
         width: animate ? (open ? "300px" : "52px") : "300px",
       }}
+      transition={{ duration: 0.2 }}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
       {...props}

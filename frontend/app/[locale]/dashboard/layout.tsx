@@ -123,7 +123,7 @@ export default function DashboardLayout({
 
         <main className="flex-1 overflow-y-auto relative">
           <div
-            className="absolute inset-0 pointer-events-none opacity-[0.15] dark:opacity-[0.15]"
+            className="fixed inset-0 pointer-events-none opacity-[0.15] dark:opacity-[0.15] z-0"
             style={{
               backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
               backgroundSize: "8px 8px",

@@ -9,7 +9,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/daniilrusanov/estimate-pro/backend/internal/modules/auth/domain"
-	projectDomain "github.com/daniilrusanov/estimate-pro/backend/internal/modules/project/domain"
 	"github.com/daniilrusanov/estimate-pro/backend/pkg/jwt"
 )
 
@@ -52,31 +51,15 @@ func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) error {
 
 // --- Mock WorkspaceRepository ---
 
-type mockWorkspaceRepo struct {
-	createFn   func(ctx context.Context, workspace *projectDomain.Workspace) error
-	getByIDFn  func(ctx context.Context, id string) (*projectDomain.Workspace, error)
-	listByUser func(ctx context.Context, userID string) ([]*projectDomain.Workspace, error)
+type mockWorkspaceCreator struct {
+	createFn func(ctx context.Context, userID, name string) error
 }
 
-func (m *mockWorkspaceRepo) Create(ctx context.Context, workspace *projectDomain.Workspace) error {
+func (m *mockWorkspaceCreator) CreatePersonalWorkspace(ctx context.Context, userID, name string) error {
 	if m.createFn != nil {
-		return m.createFn(ctx, workspace)
+		return m.createFn(ctx, userID, name)
 	}
 	return nil
-}
-
-func (m *mockWorkspaceRepo) GetByID(ctx context.Context, id string) (*projectDomain.Workspace, error) {
-	if m.getByIDFn != nil {
-		return m.getByIDFn(ctx, id)
-	}
-	return nil, errors.New("workspace not found")
-}
-
-func (m *mockWorkspaceRepo) ListByUser(ctx context.Context, userID string) ([]*projectDomain.Workspace, error) {
-	if m.listByUser != nil {
-		return m.listByUser(ctx, userID)
-	}
-	return nil, nil
 }
 
 // --- Helper ---
@@ -101,7 +84,7 @@ func TestRegister(t *testing.T) {
 		name      string
 		input     RegisterInput
 		userRepo  *mockUserRepo
-		wsRepo    *mockWorkspaceRepo
+		wsRepo    *mockWorkspaceCreator
 		wantErr   error
 		wantUser  bool
 		wantToken bool
@@ -121,8 +104,8 @@ func TestRegister(t *testing.T) {
 					return nil
 				},
 			},
-			wsRepo: &mockWorkspaceRepo{
-				createFn: func(_ context.Context, _ *projectDomain.Workspace) error {
+			wsRepo: &mockWorkspaceCreator{
+				createFn: func(_ context.Context, _, _ string) error {
 					return nil
 				},
 			},
@@ -142,7 +125,7 @@ func TestRegister(t *testing.T) {
 					return &domain.User{ID: "existing-id", Email: "taken@example.com"}, nil
 				},
 			},
-			wsRepo:    &mockWorkspaceRepo{},
+			wsRepo:    &mockWorkspaceCreator{},
 			wantErr:   domain.ErrEmailTaken,
 			wantUser:  false,
 			wantToken: false,
@@ -259,7 +242,7 @@ func TestLogin(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := New(tc.repo, &mockWorkspaceRepo{}, newTestJWT())
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT())
 
 			result, err := uc.Login(t.Context(), tc.input)
 
@@ -333,7 +316,7 @@ func TestRefresh(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := New(tc.repo, &mockWorkspaceRepo{}, jwtSvc)
+			uc := New(tc.repo, &mockWorkspaceCreator{}, jwtSvc)
 
 			tokens, err := uc.Refresh(t.Context(), tc.refreshToken)
 

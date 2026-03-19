@@ -48,7 +48,7 @@ func (uc *MemberUsecase) AddMember(ctx context.Context, input AddMemberInput) er
 		Role:      input.Role,
 	}
 	if err := uc.memberRepo.Add(ctx, member); err != nil {
-		return err
+		return fmt.Errorf("member.AddMember: %w", err)
 	}
 	return nil
 }

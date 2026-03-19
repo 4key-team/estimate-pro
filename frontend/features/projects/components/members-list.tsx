@@ -76,7 +76,7 @@ export function MembersList({ projectId }: MembersListProps) {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold">{t("members")}</h3>
-        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-2">
+        <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)} className="gap-2">
           <UserPlus className="h-4 w-4" />
           {t("addMember")}
         </Button>

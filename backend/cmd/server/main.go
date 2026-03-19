@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 
 	"github.com/daniilrusanov/estimate-pro/backend/internal/config"
 	"github.com/daniilrusanov/estimate-pro/backend/internal/infra/postgres"
@@ -24,6 +25,7 @@ import (
 	authRepo "github.com/daniilrusanov/estimate-pro/backend/internal/modules/auth/repository"
 	authUsecase "github.com/daniilrusanov/estimate-pro/backend/internal/modules/auth/usecase"
 
+	projectDomain "github.com/daniilrusanov/estimate-pro/backend/internal/modules/project/domain"
 	projectHandler "github.com/daniilrusanov/estimate-pro/backend/internal/modules/project/handler"
 	projectRepo "github.com/daniilrusanov/estimate-pro/backend/internal/modules/project/repository"
 	projectUsecase "github.com/daniilrusanov/estimate-pro/backend/internal/modules/project/usecase"
@@ -31,6 +33,10 @@ import (
 	documentHandler "github.com/daniilrusanov/estimate-pro/backend/internal/modules/document/handler"
 	documentRepo "github.com/daniilrusanov/estimate-pro/backend/internal/modules/document/repository"
 	documentUsecase "github.com/daniilrusanov/estimate-pro/backend/internal/modules/document/usecase"
+
+	estimationHandler "github.com/daniilrusanov/estimate-pro/backend/internal/modules/estimation/handler"
+	estimationRepo "github.com/daniilrusanov/estimate-pro/backend/internal/modules/estimation/repo"
+	estimationUsecase "github.com/daniilrusanov/estimate-pro/backend/internal/modules/estimation/usecase"
 )
 
 func main() {
@@ -88,10 +94,15 @@ func main() {
 	versionRepo := documentRepo.NewPostgresVersionRepository(pool)
 	fileStorage := documentRepo.NewS3FileStorage(s3Client)
 
+	// Estimation repositories
+	estRepository := estimationRepo.NewPostgresEstimationRepository(pool)
+	estItemRepo := estimationRepo.NewPostgresItemRepository(pool)
+
 	// Usecases
-	authUC := authUsecase.New(userRepo, workspaceRepo, jwtService)
+	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService)
 	projectUC := projectUsecase.New(projectRepository, workspaceRepo, memberRepo)
 	documentUC := documentUsecase.New(docRepository, versionRepo, fileStorage)
+	estimationUC := estimationUsecase.New(estRepository, estItemRepo)
 
 	// Handlers
 	authH := authHandler.New(authUC)
@@ -99,6 +110,7 @@ func main() {
 	memberUC := projectUsecase.NewMemberUsecase(memberRepo, projectRepository, userFinder)
 	projectH := projectHandler.New(projectUC, memberUC, workspaceRepo)
 	documentH := documentHandler.New(documentUC)
+	estimationH := estimationHandler.New(estimationUC, &memberRoleAdapter{memberRepo})
 
 	// Router
 	r := chi.NewRouter()
@@ -118,6 +130,7 @@ func main() {
 	authH.Register(r, jwtService)
 	projectH.Register(r, jwtService)
 	documentH.Register(r, jwtService)
+	estimationH.Register(r, jwtService)
 
 	// Server
 	srv := &http.Server{
@@ -146,4 +159,34 @@ func main() {
 		slog.Error("server shutdown error", "error", err)
 	}
 	slog.Info("server stopped")
+}
+
+// workspaceCreatorAdapter adapts WorkspaceRepository to auth domain's WorkspaceCreator interface.
+type workspaceCreatorAdapter struct {
+	repo projectDomain.WorkspaceRepository
+}
+
+func (a *workspaceCreatorAdapter) CreatePersonalWorkspace(ctx context.Context, userID, name string) error {
+	ws := &projectDomain.Workspace{
+		ID:        uuid.New().String(),
+		Name:      name,
+		OwnerID:   userID,
+		CreatedAt: time.Now(),
+	}
+	return a.repo.Create(ctx, ws)
+}
+
+// memberRoleAdapter adapts MemberRepository.GetRole to estimation handler's RoleChecker interface.
+type memberRoleAdapter struct {
+	repo interface {
+		GetRole(ctx context.Context, projectID, userID string) (projectDomain.Role, error)
+	}
+}
+
+func (a *memberRoleAdapter) CanEstimate(ctx context.Context, projectID, userID string) bool {
+	role, err := a.repo.GetRole(ctx, projectID, userID)
+	if err != nil {
+		return true // if role unknown, allow (fail open — permission checked elsewhere)
+	}
+	return role.CanEstimate()
 }

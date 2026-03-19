@@ -2,6 +2,18 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Prevent white flash during navigation */
+html {
+  color-scheme: dark light;
+}
+html.dark {
+  color-scheme: dark;
+  background: oklch(0.145 0 0);
+}
+html:not(.dark) {
+  color-scheme: light;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

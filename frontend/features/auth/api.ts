@@ -70,6 +70,13 @@ export async function getCurrentUser(): Promise<User> {
   return apiClient<User>("/api/v1/auth/me");
 }
 
+export async function updateProfile(data: { name: string }): Promise<User> {
+  return apiClient<User>("/api/v1/auth/profile", {
+    method: "PATCH",
+    body: data,
+  });
+}
+
 export function logout(): void {
   clearTokens();
 }

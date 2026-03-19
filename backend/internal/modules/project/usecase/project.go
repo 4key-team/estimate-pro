@@ -79,6 +79,20 @@ func (uc *ProjectUsecase) List(ctx context.Context, input ListProjectsInput) (*L
 	return &ListProjectsOutput{Projects: projects, Total: total}, nil
 }
 
+type ListByUserInput struct {
+	UserID string
+	Limit  int
+	Offset int
+}
+
+func (uc *ProjectUsecase) ListByUser(ctx context.Context, input ListByUserInput) (*ListProjectsOutput, error) {
+	projects, total, err := uc.projectRepo.ListByUser(ctx, input.UserID, input.Limit, input.Offset)
+	if err != nil {
+		return nil, fmt.Errorf("project.ListByUser: %w", err)
+	}
+	return &ListProjectsOutput{Projects: projects, Total: total}, nil
+}
+
 func (uc *ProjectUsecase) GetByID(ctx context.Context, id string) (*domain.Project, error) {
 	return uc.projectRepo.GetByID(ctx, id)
 }

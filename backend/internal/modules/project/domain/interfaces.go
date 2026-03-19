@@ -6,6 +6,7 @@ type ProjectRepository interface {
 	Create(ctx context.Context, project *Project) error
 	GetByID(ctx context.Context, id string) (*Project, error)
 	ListByWorkspace(ctx context.Context, workspaceID string, limit, offset int) ([]*Project, int, error)
+	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*Project, int, error)
 	Update(ctx context.Context, project *Project) error
 	Delete(ctx context.Context, id string) error
 }
