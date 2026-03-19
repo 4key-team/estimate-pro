@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -99,7 +100,8 @@ func main() {
 	estItemRepo := estimationRepo.NewPostgresItemRepository(pool)
 
 	// Usecases
-	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService, tokenStore, &avatarStorageAdapter{s3Client})
+	membershipChecker := authRepo.NewPostgresMembershipChecker(pool)
+	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService, tokenStore, &avatarStorageAdapter{s3Client}, membershipChecker)
 	projectUC := projectUsecase.New(projectRepository, workspaceRepo, memberRepo)
 	documentUC := documentUsecase.New(docRepository, versionRepo, fileStorage)
 	estimationUC := estimationUsecase.New(estRepository, estItemRepo)
@@ -198,4 +200,19 @@ type avatarStorageAdapter struct {
 
 func (a *avatarStorageAdapter) Upload(ctx context.Context, key string, data []byte, contentType string) (string, error) {
 	return a.s3.UploadBytes(ctx, key, data, contentType)
+}
+
+func (a *avatarStorageAdapter) Download(ctx context.Context, key string) ([]byte, string, error) {
+	reader, err := a.s3.Download(ctx, key)
+	if err != nil {
+		return nil, "", err
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, "", err
+	}
+	// Detect content type from data
+	ct := http.DetectContentType(data)
+	return data, ct, nil
 }

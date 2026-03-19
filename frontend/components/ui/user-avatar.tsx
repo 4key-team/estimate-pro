@@ -55,7 +55,7 @@ export function UserAvatar({ name, avatarUrl, size = "md", className }: UserAvat
     >
       {avatarUrl ? (
         <img
-          src={avatarUrl}
+          src={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}${avatarUrl}`}
           alt={displayName}
           className="w-full h-full object-cover"
         />

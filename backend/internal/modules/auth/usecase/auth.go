@@ -14,15 +14,16 @@ import (
 )
 
 type AuthUsecase struct {
-	userRepo         domain.UserRepository
-	workspaceCreator domain.WorkspaceCreator
-	jwtService       *jwt.Service
-	tokenStore       domain.TokenStore
-	avatarStorage    domain.AvatarStorage
+	userRepo          domain.UserRepository
+	workspaceCreator  domain.WorkspaceCreator
+	jwtService        *jwt.Service
+	tokenStore        domain.TokenStore
+	avatarStorage     domain.AvatarStorage
+	membershipChecker domain.MembershipChecker
 }
 
-func New(userRepo domain.UserRepository, workspaceCreator domain.WorkspaceCreator, jwtService *jwt.Service, tokenStore domain.TokenStore, avatarStorage domain.AvatarStorage) *AuthUsecase {
-	return &AuthUsecase{userRepo: userRepo, workspaceCreator: workspaceCreator, jwtService: jwtService, tokenStore: tokenStore, avatarStorage: avatarStorage}
+func New(userRepo domain.UserRepository, workspaceCreator domain.WorkspaceCreator, jwtService *jwt.Service, tokenStore domain.TokenStore, avatarStorage domain.AvatarStorage, membershipChecker domain.MembershipChecker) *AuthUsecase {
+	return &AuthUsecase{userRepo: userRepo, workspaceCreator: workspaceCreator, jwtService: jwtService, tokenStore: tokenStore, avatarStorage: avatarStorage, membershipChecker: membershipChecker}
 }
 
 type RegisterInput struct {
@@ -186,12 +187,11 @@ func (uc *AuthUsecase) UploadAvatar(ctx context.Context, userID string, data []b
 	}
 
 	key := fmt.Sprintf("avatars/%s", userID)
-	url, err := uc.avatarStorage.Upload(ctx, key, data, contentType)
-	if err != nil {
+	if _, err := uc.avatarStorage.Upload(ctx, key, data, contentType); err != nil {
 		return nil, fmt.Errorf("auth.UploadAvatar upload: %w", err)
 	}
 
-	user.AvatarURL = url
+	user.AvatarURL = fmt.Sprintf("/api/v1/auth/avatar/%s", userID)
 	user.UpdatedAt = time.Now()
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
@@ -199,4 +199,16 @@ func (uc *AuthUsecase) UploadAvatar(ctx context.Context, userID string, data []b
 	}
 
 	return user, nil
+}
+
+func (uc *AuthUsecase) GetAvatar(ctx context.Context, callerID, targetUserID string) ([]byte, string, error) {
+	// Allow own avatar
+	if callerID != targetUserID {
+		shared, err := uc.membershipChecker.ShareProject(ctx, callerID, targetUserID)
+		if err != nil || !shared {
+			return nil, "", fmt.Errorf("auth.GetAvatar: access denied")
+		}
+	}
+	key := fmt.Sprintf("avatars/%s", targetUserID)
+	return uc.avatarStorage.Download(ctx, key)
 }

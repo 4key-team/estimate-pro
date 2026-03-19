@@ -30,12 +30,12 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 		r.Post("/register", h.RegisterUser)
 		r.Post("/refresh", h.Refresh)
 		r.Post("/logout", h.Logout)
-
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(jwtService))
 			r.Get("/me", h.Me)
 			r.Patch("/profile", h.UpdateProfile)
 			r.Post("/avatar", h.UploadAvatar)
+			r.Get("/avatar/{userId}", h.GetAvatar)
 		})
 	})
 }
@@ -245,5 +245,24 @@ func (h *Handler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, http.StatusOK, toUserDTO(user))
+}
+
+func (h *Handler) GetAvatar(w http.ResponseWriter, r *http.Request) {
+	callerID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+	targetUserID := chi.URLParam(r, "userId")
+
+	imgData, imgContentType, err := h.uc.GetAvatar(r.Context(), callerID, targetUserID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", imgContentType)
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Write(imgData)
 }
 

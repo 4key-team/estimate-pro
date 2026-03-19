@@ -18,9 +18,15 @@ type WorkspaceCreator interface {
 	CreatePersonalWorkspace(ctx context.Context, userID, name string) error
 }
 
+// MembershipChecker checks if two users share at least one project.
+type MembershipChecker interface {
+	ShareProject(ctx context.Context, userA, userB string) (bool, error)
+}
+
 // AvatarStorage uploads and serves avatar images.
 type AvatarStorage interface {
 	Upload(ctx context.Context, key string, data []byte, contentType string) (url string, err error)
+	Download(ctx context.Context, key string) ([]byte, string, error) // data, contentType, error
 }
 
 // TokenStore manages refresh token persistence (Redis-backed).
