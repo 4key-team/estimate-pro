@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -54,6 +55,17 @@ func (c *Client) Download(ctx context.Context, key string) (io.ReadCloser, error
 		return nil, fmt.Errorf("s3.Download: %w", err)
 	}
 	return obj, nil
+}
+
+func (c *Client) UploadBytes(ctx context.Context, key string, data []byte, contentType string) (string, error) {
+	_, err := c.minio.PutObject(ctx, c.bucket, key, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return "", fmt.Errorf("s3.UploadBytes: %w", err)
+	}
+	// Return a URL that can be used to access the file
+	return fmt.Sprintf("/%s/%s", c.bucket, key), nil
 }
 
 func (c *Client) Delete(ctx context.Context, key string) error {

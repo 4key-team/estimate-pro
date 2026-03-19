@@ -18,10 +18,11 @@ type AuthUsecase struct {
 	workspaceCreator domain.WorkspaceCreator
 	jwtService       *jwt.Service
 	tokenStore       domain.TokenStore
+	avatarStorage    domain.AvatarStorage
 }
 
-func New(userRepo domain.UserRepository, workspaceCreator domain.WorkspaceCreator, jwtService *jwt.Service, tokenStore domain.TokenStore) *AuthUsecase {
-	return &AuthUsecase{userRepo: userRepo, workspaceCreator: workspaceCreator, jwtService: jwtService, tokenStore: tokenStore}
+func New(userRepo domain.UserRepository, workspaceCreator domain.WorkspaceCreator, jwtService *jwt.Service, tokenStore domain.TokenStore, avatarStorage domain.AvatarStorage) *AuthUsecase {
+	return &AuthUsecase{userRepo: userRepo, workspaceCreator: workspaceCreator, jwtService: jwtService, tokenStore: tokenStore, avatarStorage: avatarStorage}
 }
 
 type RegisterInput struct {
@@ -173,6 +174,28 @@ func (uc *AuthUsecase) UpdateProfile(ctx context.Context, input UpdateProfileInp
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
 		return nil, fmt.Errorf("auth.UpdateProfile: %w", err)
+	}
+
+	return user, nil
+}
+
+func (uc *AuthUsecase) UploadAvatar(ctx context.Context, userID string, data []byte, contentType string) (*domain.User, error) {
+	user, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("auth.UploadAvatar: %w", err)
+	}
+
+	key := fmt.Sprintf("avatars/%s", userID)
+	url, err := uc.avatarStorage.Upload(ctx, key, data, contentType)
+	if err != nil {
+		return nil, fmt.Errorf("auth.UploadAvatar upload: %w", err)
+	}
+
+	user.AvatarURL = url
+	user.UpdatedAt = time.Now()
+
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("auth.UploadAvatar save: %w", err)
 	}
 
 	return user, nil

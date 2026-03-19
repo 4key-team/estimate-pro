@@ -93,6 +93,12 @@ func (m *mockTokenStore) DeleteAll(_ context.Context, userID string) error {
 	return nil
 }
 
+type mockAvatarStorage struct{}
+
+func (m *mockAvatarStorage) Upload(_ context.Context, key string, _ []byte, _ string) (string, error) {
+	return "/avatars/" + key, nil
+}
+
 // --- Helper ---
 
 func newTestJWT() *jwt.Service {
@@ -165,7 +171,7 @@ func TestRegister(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := New(tc.userRepo, tc.wsRepo, newTestJWT(), newMockTokenStore())
+			uc := New(tc.userRepo, tc.wsRepo, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{})
 
 			result, err := uc.Register(t.Context(), tc.input)
 
@@ -273,7 +279,7 @@ func TestLogin(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore())
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{})
 
 			result, err := uc.Login(t.Context(), tc.input)
 
@@ -352,7 +358,7 @@ func TestRefresh(t *testing.T) {
 			if tc.wantErr == nil {
 				store.Save(t.Context(), "user-123", validPair.RefreshID, 7*24*time.Hour)
 			}
-			uc := New(tc.repo, &mockWorkspaceCreator{}, jwtSvc, store)
+			uc := New(tc.repo, &mockWorkspaceCreator{}, jwtSvc, store, &mockAvatarStorage{})
 
 			tokens, err := uc.Refresh(t.Context(), tc.refreshToken)
 
@@ -390,7 +396,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 			return &domain.User{ID: "user-1"}, nil
 		},
 	}
-	uc := New(repo, &mockWorkspaceCreator{}, jwtSvc, store)
+	uc := New(repo, &mockWorkspaceCreator{}, jwtSvc, store, &mockAvatarStorage{})
 
 	// Generate a token but do NOT save it to the store (simulates revocation)
 	pair, _ := jwtSvc.GeneratePair("user-1")
@@ -409,7 +415,7 @@ func TestRefresh_RotatesTokens(t *testing.T) {
 			return &domain.User{ID: "user-1"}, nil
 		},
 	}
-	uc := New(repo, &mockWorkspaceCreator{}, jwtSvc, store)
+	uc := New(repo, &mockWorkspaceCreator{}, jwtSvc, store, &mockAvatarStorage{})
 
 	// Generate and save initial token
 	pair, _ := jwtSvc.GeneratePair("user-1")
@@ -436,7 +442,7 @@ func TestRefresh_RotatesTokens(t *testing.T) {
 func TestLogout_DeletesToken(t *testing.T) {
 	jwtSvc := newTestJWT()
 	store := newMockTokenStore()
-	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, jwtSvc, store)
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, jwtSvc, store, &mockAvatarStorage{})
 
 	pair, _ := jwtSvc.GeneratePair("user-1")
 	store.Save(t.Context(), "user-1", pair.RefreshID, 7*24*time.Hour)
@@ -454,7 +460,7 @@ func TestLogout_DeletesToken(t *testing.T) {
 
 func TestLogout_InvalidToken_NoError(t *testing.T) {
 	jwtSvc := newTestJWT()
-	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, jwtSvc, newMockTokenStore())
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, jwtSvc, newMockTokenStore(), &mockAvatarStorage{})
 
 	err := uc.Logout(t.Context(), "invalid.token.string")
 	if err != nil {

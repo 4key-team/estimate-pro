@@ -18,6 +18,11 @@ type WorkspaceCreator interface {
 	CreatePersonalWorkspace(ctx context.Context, userID, name string) error
 }
 
+// AvatarStorage uploads and serves avatar images.
+type AvatarStorage interface {
+	Upload(ctx context.Context, key string, data []byte, contentType string) (url string, err error)
+}
+
 // TokenStore manages refresh token persistence (Redis-backed).
 type TokenStore interface {
 	Save(ctx context.Context, userID, tokenID string, ttl time.Duration) error

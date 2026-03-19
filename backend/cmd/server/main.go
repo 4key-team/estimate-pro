@@ -99,7 +99,7 @@ func main() {
 	estItemRepo := estimationRepo.NewPostgresItemRepository(pool)
 
 	// Usecases
-	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService, tokenStore)
+	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService, tokenStore, &avatarStorageAdapter{s3Client})
 	projectUC := projectUsecase.New(projectRepository, workspaceRepo, memberRepo)
 	documentUC := documentUsecase.New(docRepository, versionRepo, fileStorage)
 	estimationUC := estimationUsecase.New(estRepository, estItemRepo)
@@ -189,4 +189,13 @@ func (a *memberRoleAdapter) CanEstimate(ctx context.Context, projectID, userID s
 		return true // if role unknown, allow (fail open — permission checked elsewhere)
 	}
 	return role.CanEstimate()
+}
+
+// avatarStorageAdapter adapts S3 Client to auth domain's AvatarStorage interface.
+type avatarStorageAdapter struct {
+	s3 *s3.Client
+}
+
+func (a *avatarStorageAdapter) Upload(ctx context.Context, key string, data []byte, contentType string) (string, error) {
+	return a.s3.UploadBytes(ctx, key, data, contentType)
 }

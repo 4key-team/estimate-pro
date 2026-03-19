@@ -1,4 +1,4 @@
-import { apiClient, setTokens, clearTokens } from "@/lib/api-client";
+import { apiClient, setTokens, clearTokens, getAccessToken } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,6 +19,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  avatar_url?: string;
   preferred_locale: string;
 }
 
@@ -75,6 +76,30 @@ export async function updateProfile(data: { name: string }): Promise<User> {
     method: "PATCH",
     body: data,
   });
+}
+
+export async function uploadAvatar(file: File): Promise<User> {
+  const formData = new FormData();
+  formData.append("avatar", file);
+
+  const headers: Record<string, string> = {};
+  const token = getAccessToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+  const response = await fetch(`${API_BASE}/api/v1/auth/avatar`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("Avatar upload failed");
+  }
+
+  return response.json() as Promise<User>;
 }
 
 export function logout(): void {

@@ -96,12 +96,12 @@ export default function DashboardLayout({
           <HoverCard openDelay={200} closeDelay={100}>
             <HoverCardTrigger asChild>
               <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                <UserAvatar name={user?.name} size="sm" />
+                <UserAvatar name={user?.name} avatarUrl={user?.avatar_url} size="sm" />
               </button>
             </HoverCardTrigger>
             <HoverCardContent align="end" className="w-72 p-5">
               <div className="flex items-center gap-4">
-                <UserAvatar name={user?.name} size="md" />
+                <UserAvatar name={user?.name} avatarUrl={user?.avatar_url} size="md" />
                 <div className="space-y-0.5 min-w-0">
                   <p className="text-sm font-semibold truncate">{user?.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>

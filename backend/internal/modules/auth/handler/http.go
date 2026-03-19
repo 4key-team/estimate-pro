@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -34,6 +35,7 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 			r.Use(middleware.Auth(jwtService))
 			r.Get("/me", h.Me)
 			r.Patch("/profile", h.UpdateProfile)
+			r.Post("/avatar", h.UploadAvatar)
 		})
 	})
 }
@@ -48,6 +50,7 @@ type userDTO struct {
 	ID              string `json:"id"`
 	Email           string `json:"email"`
 	Name            string `json:"name"`
+	AvatarURL       string `json:"avatar_url,omitempty"`
 	PreferredLocale string `json:"preferred_locale"`
 }
 
@@ -56,6 +59,7 @@ func toUserDTO(u *domain.User) userDTO {
 		ID:              u.ID,
 		Email:           u.Email,
 		Name:            u.Name,
+		AvatarURL:       u.AvatarURL,
 		PreferredLocale: u.PreferredLocale,
 	}
 }
@@ -197,6 +201,46 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		sharedErrors.InternalError(w, "failed to update profile")
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, toUserDTO(user))
+}
+
+func (h *Handler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		sharedErrors.BadRequest(w, "file too large (max 5MB)")
+		return
+	}
+
+	file, header, err := r.FormFile("avatar")
+	if err != nil {
+		sharedErrors.BadRequest(w, "avatar file is required")
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		sharedErrors.InternalError(w, "failed to read file")
+		return
+	}
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
+		sharedErrors.BadRequest(w, "only JPEG, PNG, and WebP images are allowed")
+		return
+	}
+
+	user, err := h.uc.UploadAvatar(r.Context(), userID, data, contentType)
+	if err != nil {
+		sharedErrors.InternalError(w, "failed to upload avatar")
 		return
 	}
 

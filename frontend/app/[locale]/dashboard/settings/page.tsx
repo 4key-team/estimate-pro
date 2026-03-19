@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useAuthStore } from "@/features/auth/store";
-import { updateProfile } from "@/features/auth/api";
+import { updateProfile, uploadAvatar } from "@/features/auth/api";
 
 export default function SettingsPage() {
   const t = useTranslations();
@@ -69,10 +69,24 @@ export default function SettingsPage() {
             {/* Avatar with upload */}
             <div className="flex items-center gap-6 mb-8">
               <div className="relative group flex-shrink-0">
-                <UserAvatar name={user?.name} size="lg" />
+                <UserAvatar name={user?.name} avatarUrl={user?.avatar_url} size="lg" />
                 <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                   <Camera className="h-6 w-6 text-white" />
-                  <input type="file" accept="image/*" className="hidden" disabled />
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const updatedUser = await uploadAvatar(file);
+                        setUser(updatedUser);
+                      } catch {
+                        // silently fail for now
+                      }
+                    }}
+                  />
                 </label>
               </div>
               <div className="space-y-1">
