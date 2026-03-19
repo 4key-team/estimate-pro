@@ -128,8 +128,12 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// OAuth handler
+	oauthH := authHandler.NewOAuthHandler(authUC, cfg.OAuth)
+
 	// Module routes
 	authH.Register(r, jwtService)
+	oauthH.Register(r)
 	projectH.Register(r, jwtService)
 	documentH.Register(r, jwtService)
 	estimationH.Register(r, jwtService)

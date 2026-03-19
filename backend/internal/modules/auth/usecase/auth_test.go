@@ -468,6 +468,59 @@ func TestLogout_DeletesToken(t *testing.T) {
 	}
 }
 
+func TestOAuthLogin_NewUser(t *testing.T) {
+	store := newMockTokenStore()
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, domain.ErrUserNotFound
+		},
+		createFn: func(_ context.Context, _ *domain.User) error {
+			return nil
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{
+		createFn: func(_ context.Context, _, _ string) error { return nil },
+	}, newTestJWT(), store, &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	result, err := uc.OAuthLogin(t.Context(), OAuthLoginInput{
+		Email:    "oauth@example.com",
+		Name:     "OAuth User",
+		Provider: "google",
+	})
+	if err != nil {
+		t.Fatalf("OAuthLogin error: %v", err)
+	}
+	if result.User.Email != "oauth@example.com" {
+		t.Errorf("email = %q, want oauth@example.com", result.User.Email)
+	}
+	if result.TokenPair.AccessToken == "" {
+		t.Error("expected non-empty access token")
+	}
+}
+
+func TestOAuthLogin_ExistingUser(t *testing.T) {
+	store := newMockTokenStore()
+	existingUser := &domain.User{ID: "user-1", Email: "existing@example.com", Name: "Existing"}
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return existingUser, nil
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), store, &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	result, err := uc.OAuthLogin(t.Context(), OAuthLoginInput{
+		Email:    "existing@example.com",
+		Name:     "Existing",
+		Provider: "github",
+	})
+	if err != nil {
+		t.Fatalf("OAuthLogin error: %v", err)
+	}
+	if result.User.ID != "user-1" {
+		t.Errorf("should return existing user, got ID %q", result.User.ID)
+	}
+}
+
 func TestLogout_InvalidToken_NoError(t *testing.T) {
 	jwtSvc := newTestJWT()
 	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, jwtSvc, newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})

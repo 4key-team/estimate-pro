@@ -211,3 +211,50 @@ func (uc *AuthUsecase) GetAvatar(ctx context.Context, callerID, targetUserID str
 	key := fmt.Sprintf("avatars/%s", targetUserID)
 	return uc.avatarStorage.Download(ctx, key)
 }
+
+type OAuthLoginInput struct {
+	Email    string
+	Name     string
+	Provider string
+}
+
+func (uc *AuthUsecase) OAuthLogin(ctx context.Context, input OAuthLoginInput) (*AuthOutput, error) {
+	// Try to find existing user by email
+	user, err := uc.userRepo.GetByEmail(ctx, input.Email)
+	if err != nil && !errors.Is(err, domain.ErrUserNotFound) {
+		return nil, fmt.Errorf("auth.OAuthLogin: %w", err)
+	}
+
+	if user == nil {
+		// Create new user (no password for OAuth users)
+		now := time.Now()
+		user = &domain.User{
+			ID:              uuid.New().String(),
+			Email:           input.Email,
+			PasswordHash:    "", // OAuth users have no password
+			Name:            input.Name,
+			PreferredLocale: "ru",
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+
+		if err := uc.userRepo.Create(ctx, user); err != nil {
+			return nil, fmt.Errorf("auth.OAuthLogin create user: %w", err)
+		}
+
+		if err := uc.workspaceCreator.CreatePersonalWorkspace(ctx, user.ID, input.Name); err != nil {
+			return nil, fmt.Errorf("auth.OAuthLogin create workspace: %w", err)
+		}
+	}
+
+	tokens, err := uc.jwtService.GeneratePair(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("auth.OAuthLogin tokens: %w", err)
+	}
+
+	if err := uc.tokenStore.Save(ctx, user.ID, tokens.RefreshID, uc.jwtService.RefreshTTL()); err != nil {
+		return nil, fmt.Errorf("auth.OAuthLogin store token: %w", err)
+	}
+
+	return &AuthOutput{User: user, TokenPair: tokens}, nil
+}
