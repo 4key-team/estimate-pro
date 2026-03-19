@@ -28,6 +28,7 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 		r.Post("/login", h.Login)
 		r.Post("/register", h.RegisterUser)
 		r.Post("/refresh", h.Refresh)
+		r.Post("/logout", h.Logout)
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(jwtService))
@@ -133,6 +134,10 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	tokens, err := h.uc.Refresh(r.Context(), req.RefreshToken)
 	if err != nil {
+		if errors.Is(err, domain.ErrTokenRevoked) {
+			sharedErrors.Unauthorized(w, "refresh token revoked")
+			return
+		}
 		sharedErrors.Unauthorized(w, "invalid refresh token")
 		return
 	}
@@ -141,6 +146,16 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
 	})
+}
+
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	var req RefreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sharedErrors.BadRequest(w, "invalid request body")
+		return
+	}
+	_ = h.uc.Logout(r.Context(), req.RefreshToken)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {

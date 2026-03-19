@@ -62,6 +62,37 @@ func (m *mockWorkspaceCreator) CreatePersonalWorkspace(ctx context.Context, user
 	return nil
 }
 
+type mockTokenStore struct {
+	tokens map[string]bool
+}
+
+func newMockTokenStore() *mockTokenStore {
+	return &mockTokenStore{tokens: make(map[string]bool)}
+}
+
+func (m *mockTokenStore) Save(_ context.Context, userID, tokenID string, _ time.Duration) error {
+	m.tokens[userID+":"+tokenID] = true
+	return nil
+}
+
+func (m *mockTokenStore) Exists(_ context.Context, userID, tokenID string) (bool, error) {
+	return m.tokens[userID+":"+tokenID], nil
+}
+
+func (m *mockTokenStore) Delete(_ context.Context, userID, tokenID string) error {
+	delete(m.tokens, userID+":"+tokenID)
+	return nil
+}
+
+func (m *mockTokenStore) DeleteAll(_ context.Context, userID string) error {
+	for k := range m.tokens {
+		if len(k) > len(userID) && k[:len(userID)+1] == userID+":" {
+			delete(m.tokens, k)
+		}
+	}
+	return nil
+}
+
 // --- Helper ---
 
 func newTestJWT() *jwt.Service {
@@ -134,7 +165,7 @@ func TestRegister(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := New(tc.userRepo, tc.wsRepo, newTestJWT())
+			uc := New(tc.userRepo, tc.wsRepo, newTestJWT(), newMockTokenStore())
 
 			result, err := uc.Register(t.Context(), tc.input)
 
@@ -242,7 +273,7 @@ func TestLogin(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT())
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore())
 
 			result, err := uc.Login(t.Context(), tc.input)
 
@@ -316,7 +347,12 @@ func TestRefresh(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := New(tc.repo, &mockWorkspaceCreator{}, jwtSvc)
+			store := newMockTokenStore()
+			// Pre-save the valid token so Refresh finds it
+			if tc.wantErr == nil {
+				store.Save(t.Context(), "user-123", validPair.RefreshID, 7*24*time.Hour)
+			}
+			uc := New(tc.repo, &mockWorkspaceCreator{}, jwtSvc, store)
 
 			tokens, err := uc.Refresh(t.Context(), tc.refreshToken)
 
@@ -343,5 +379,85 @@ func TestRefresh(t *testing.T) {
 				t.Error("expected non-empty refresh token")
 			}
 		})
+	}
+}
+
+func TestRefresh_RevokedToken(t *testing.T) {
+	jwtSvc := newTestJWT()
+	store := newMockTokenStore()
+	repo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return &domain.User{ID: "user-1"}, nil
+		},
+	}
+	uc := New(repo, &mockWorkspaceCreator{}, jwtSvc, store)
+
+	// Generate a token but do NOT save it to the store (simulates revocation)
+	pair, _ := jwtSvc.GeneratePair("user-1")
+
+	_, err := uc.Refresh(t.Context(), pair.RefreshToken)
+	if !errors.Is(err, domain.ErrTokenRevoked) {
+		t.Fatalf("expected ErrTokenRevoked, got: %v", err)
+	}
+}
+
+func TestRefresh_RotatesTokens(t *testing.T) {
+	jwtSvc := newTestJWT()
+	store := newMockTokenStore()
+	repo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return &domain.User{ID: "user-1"}, nil
+		},
+	}
+	uc := New(repo, &mockWorkspaceCreator{}, jwtSvc, store)
+
+	// Generate and save initial token
+	pair, _ := jwtSvc.GeneratePair("user-1")
+	store.Save(t.Context(), "user-1", pair.RefreshID, 7*24*time.Hour)
+
+	// Refresh should rotate
+	newPair, err := uc.Refresh(t.Context(), pair.RefreshToken)
+	if err != nil {
+		t.Fatalf("Refresh error: %v", err)
+	}
+
+	// Old token should be deleted
+	exists, _ := store.Exists(t.Context(), "user-1", pair.RefreshID)
+	if exists {
+		t.Error("old token should be deleted after rotation")
+	}
+
+	// New token should exist
+	if newPair.AccessToken == "" || newPair.RefreshToken == "" {
+		t.Error("expected non-empty new tokens")
+	}
+}
+
+func TestLogout_DeletesToken(t *testing.T) {
+	jwtSvc := newTestJWT()
+	store := newMockTokenStore()
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, jwtSvc, store)
+
+	pair, _ := jwtSvc.GeneratePair("user-1")
+	store.Save(t.Context(), "user-1", pair.RefreshID, 7*24*time.Hour)
+
+	err := uc.Logout(t.Context(), pair.RefreshToken)
+	if err != nil {
+		t.Fatalf("Logout error: %v", err)
+	}
+
+	exists, _ := store.Exists(t.Context(), "user-1", pair.RefreshID)
+	if exists {
+		t.Error("token should be deleted after logout")
+	}
+}
+
+func TestLogout_InvalidToken_NoError(t *testing.T) {
+	jwtSvc := newTestJWT()
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, jwtSvc, newMockTokenStore())
+
+	err := uc.Logout(t.Context(), "invalid.token.string")
+	if err != nil {
+		t.Fatalf("expected nil error for invalid token on logout, got: %v", err)
 	}
 }

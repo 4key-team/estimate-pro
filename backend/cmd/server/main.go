@@ -77,8 +77,8 @@ func main() {
 	}
 	slog.Info("s3 client ready")
 
-	// Still unused — will be wired into notification module
-	_ = rdb
+	// Token store (Redis-backed refresh tokens)
+	tokenStore := authRepo.NewRedisTokenStore(rdb)
 
 	// JWT
 	jwtService := jwt.NewService(cfg.JWT.Secret, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL)
@@ -99,7 +99,7 @@ func main() {
 	estItemRepo := estimationRepo.NewPostgresItemRepository(pool)
 
 	// Usecases
-	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService)
+	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService, tokenStore)
 	projectUC := projectUsecase.New(projectRepository, workspaceRepo, memberRepo)
 	documentUC := documentUsecase.New(docRepository, versionRepo, fileStorage)
 	estimationUC := estimationUsecase.New(estRepository, estItemRepo)

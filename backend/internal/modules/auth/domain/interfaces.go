@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
@@ -13,4 +16,12 @@ type UserRepository interface {
 // Defined here to avoid cross-module import of project domain.
 type WorkspaceCreator interface {
 	CreatePersonalWorkspace(ctx context.Context, userID, name string) error
+}
+
+// TokenStore manages refresh token persistence (Redis-backed).
+type TokenStore interface {
+	Save(ctx context.Context, userID, tokenID string, ttl time.Duration) error
+	Exists(ctx context.Context, userID, tokenID string) (bool, error)
+	Delete(ctx context.Context, userID, tokenID string) error
+	DeleteAll(ctx context.Context, userID string) error
 }

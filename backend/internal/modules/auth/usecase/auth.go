@@ -17,10 +17,11 @@ type AuthUsecase struct {
 	userRepo         domain.UserRepository
 	workspaceCreator domain.WorkspaceCreator
 	jwtService       *jwt.Service
+	tokenStore       domain.TokenStore
 }
 
-func New(userRepo domain.UserRepository, workspaceCreator domain.WorkspaceCreator, jwtService *jwt.Service) *AuthUsecase {
-	return &AuthUsecase{userRepo: userRepo, workspaceCreator: workspaceCreator, jwtService: jwtService}
+func New(userRepo domain.UserRepository, workspaceCreator domain.WorkspaceCreator, jwtService *jwt.Service, tokenStore domain.TokenStore) *AuthUsecase {
+	return &AuthUsecase{userRepo: userRepo, workspaceCreator: workspaceCreator, jwtService: jwtService, tokenStore: tokenStore}
 }
 
 type RegisterInput struct {
@@ -63,7 +64,6 @@ func (uc *AuthUsecase) Register(ctx context.Context, input RegisterInput) (*Auth
 		return nil, fmt.Errorf("auth.Register create user: %w", err)
 	}
 
-	// Auto-create personal workspace
 	if err := uc.workspaceCreator.CreatePersonalWorkspace(ctx, user.ID, input.Name); err != nil {
 		return nil, fmt.Errorf("auth.Register create workspace: %w", err)
 	}
@@ -71,6 +71,10 @@ func (uc *AuthUsecase) Register(ctx context.Context, input RegisterInput) (*Auth
 	tokens, err := uc.jwtService.GeneratePair(user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("auth.Register tokens: %w", err)
+	}
+
+	if err := uc.tokenStore.Save(ctx, user.ID, tokens.RefreshID, uc.jwtService.RefreshTTL()); err != nil {
+		return nil, fmt.Errorf("auth.Register store token: %w", err)
 	}
 
 	return &AuthOutput{User: user, TokenPair: tokens}, nil
@@ -99,6 +103,10 @@ func (uc *AuthUsecase) Login(ctx context.Context, input LoginInput) (*AuthOutput
 		return nil, fmt.Errorf("auth.Login tokens: %w", err)
 	}
 
+	if err := uc.tokenStore.Save(ctx, user.ID, tokens.RefreshID, uc.jwtService.RefreshTTL()); err != nil {
+		return nil, fmt.Errorf("auth.Login store token: %w", err)
+	}
+
 	return &AuthOutput{User: user, TokenPair: tokens}, nil
 }
 
@@ -108,16 +116,39 @@ func (uc *AuthUsecase) Refresh(ctx context.Context, refreshToken string) (*jwt.T
 		return nil, domain.ErrInvalidCredentials
 	}
 
+	exists, err := uc.tokenStore.Exists(ctx, claims.UserID, claims.ID)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Refresh check token: %w", err)
+	}
+	if !exists {
+		return nil, domain.ErrTokenRevoked
+	}
+
 	if _, err := uc.userRepo.GetByID(ctx, claims.UserID); err != nil {
 		return nil, domain.ErrInvalidCredentials
 	}
 
+	// Token rotation: delete old, generate new
+	_ = uc.tokenStore.Delete(ctx, claims.UserID, claims.ID)
+
 	tokens, err := uc.jwtService.GeneratePair(claims.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("auth.Refresh: %w", err)
+		return nil, fmt.Errorf("auth.Refresh generate: %w", err)
+	}
+
+	if err := uc.tokenStore.Save(ctx, claims.UserID, tokens.RefreshID, uc.jwtService.RefreshTTL()); err != nil {
+		return nil, fmt.Errorf("auth.Refresh store token: %w", err)
 	}
 
 	return tokens, nil
+}
+
+func (uc *AuthUsecase) Logout(ctx context.Context, refreshToken string) error {
+	claims, err := uc.jwtService.ValidateRefresh(refreshToken)
+	if err != nil {
+		return nil // silently ignore invalid tokens on logout
+	}
+	return uc.tokenStore.Delete(ctx, claims.UserID, claims.ID)
 }
 
 func (uc *AuthUsecase) GetCurrentUser(ctx context.Context, userID string) (*domain.User, error) {

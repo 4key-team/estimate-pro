@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type Service struct {
@@ -21,6 +22,7 @@ type Claims struct {
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	RefreshID    string `json:"-"` // jti of the refresh token (not sent to client)
 }
 
 func NewService(secret string, accessTTL, refreshTTL time.Duration) *Service {
@@ -31,16 +33,21 @@ func NewService(secret string, accessTTL, refreshTTL time.Duration) *Service {
 	}
 }
 
+func (s *Service) RefreshTTL() time.Duration {
+	return s.refreshTTL
+}
+
 func (s *Service) GeneratePair(userID string) (*TokenPair, error) {
-	access, err := s.generateToken(userID, s.accessTTL, "access")
+	access, err := s.generateToken(userID, s.accessTTL, "access", "")
 	if err != nil {
 		return nil, fmt.Errorf("jwt.GeneratePair access: %w", err)
 	}
-	refresh, err := s.generateToken(userID, s.refreshTTL, "refresh")
+	refreshID := uuid.New().String()
+	refresh, err := s.generateToken(userID, s.refreshTTL, "refresh", refreshID)
 	if err != nil {
 		return nil, fmt.Errorf("jwt.GeneratePair refresh: %w", err)
 	}
-	return &TokenPair{AccessToken: access, RefreshToken: refresh}, nil
+	return &TokenPair{AccessToken: access, RefreshToken: refresh, RefreshID: refreshID}, nil
 }
 
 func (s *Service) ValidateAccess(tokenStr string) (*Claims, error) {
@@ -51,11 +58,12 @@ func (s *Service) ValidateRefresh(tokenStr string) (*Claims, error) {
 	return s.validate(tokenStr, "refresh")
 }
 
-func (s *Service) generateToken(userID string, ttl time.Duration, subject string) (string, error) {
+func (s *Service) generateToken(userID string, ttl time.Duration, subject, tokenID string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        tokenID,
 			Subject:   subject,
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
