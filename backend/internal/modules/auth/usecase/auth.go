@@ -213,9 +213,10 @@ func (uc *AuthUsecase) GetAvatar(ctx context.Context, callerID, targetUserID str
 }
 
 type OAuthLoginInput struct {
-	Email    string
-	Name     string
-	Provider string
+	Email     string
+	Name      string
+	AvatarURL string
+	Provider  string
 }
 
 func (uc *AuthUsecase) OAuthLogin(ctx context.Context, input OAuthLoginInput) (*AuthOutput, error) {
@@ -233,6 +234,7 @@ func (uc *AuthUsecase) OAuthLogin(ctx context.Context, input OAuthLoginInput) (*
 			Email:           input.Email,
 			PasswordHash:    "", // OAuth users have no password
 			Name:            input.Name,
+			AvatarURL:       input.AvatarURL,
 			PreferredLocale: "ru",
 			CreatedAt:       now,
 			UpdatedAt:       now,

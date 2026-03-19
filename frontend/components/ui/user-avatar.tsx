@@ -58,12 +58,20 @@ export function UserAvatar({ name, avatarUrl, size = "md", className }: UserAvat
       return;
     }
 
+    // External URL (GitHub, Google) — use directly
+    if (avatarUrl.startsWith("http")) {
+      setBlobUrl(avatarUrl);
+      avatarCache.set(avatarUrl, avatarUrl);
+      return;
+    }
+
     // Already cached — use it
     if (avatarCache.has(avatarUrl)) {
       setBlobUrl(avatarCache.get(avatarUrl)!);
       return;
     }
 
+    // Internal URL — fetch with JWT
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
     const token = getAccessToken();
     const headers: Record<string, string> = {};

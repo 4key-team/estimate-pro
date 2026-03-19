@@ -99,7 +99,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user info from provider
-	email, name, err := getUserInfo(r.Context(), provider, token)
+	email, name, avatarURL, err := getUserInfo(r.Context(), provider, token)
 	if err != nil {
 		sharedErrors.InternalError(w, "failed to get user info")
 		return
@@ -107,9 +107,10 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// Create or link user + generate JWT
 	result, err := h.uc.OAuthLogin(r.Context(), usecase.OAuthLoginInput{
-		Email:    email,
-		Name:     name,
-		Provider: provider,
+		Email:     email,
+		Name:      name,
+		AvatarURL: avatarURL,
+		Provider:  provider,
 	})
 	if err != nil {
 		sharedErrors.InternalError(w, "failed to authenticate")
@@ -122,8 +123,8 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
-// getUserInfo fetches email and name from OAuth provider API.
-func getUserInfo(ctx context.Context, provider string, token *oauth2.Token) (email, name string, err error) {
+// getUserInfo fetches email, name, and avatar URL from OAuth provider API.
+func getUserInfo(ctx context.Context, provider string, token *oauth2.Token) (email, name, avatarURL string, err error) {
 	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
 
 	switch provider {
@@ -132,39 +133,40 @@ func getUserInfo(ctx context.Context, provider string, token *oauth2.Token) (ema
 	case "github":
 		return getGitHubUser(client)
 	default:
-		return "", "", fmt.Errorf("unsupported provider: %s", provider)
+		return "", "", "", fmt.Errorf("unsupported provider: %s", provider)
 	}
 }
 
-func getGoogleUser(client *http.Client) (string, string, error) {
+func getGoogleUser(client *http.Client) (string, string, string, error) {
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	defer resp.Body.Close()
 
 	var info struct {
-		Email string `json:"email"`
-		Name  string `json:"name"`
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Picture string `json:"picture"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return info.Email, info.Name, nil
+	return info.Email, info.Name, info.Picture, nil
 }
 
-func getGitHubUser(client *http.Client) (string, string, error) {
-	// Get user profile
+func getGitHubUser(client *http.Client) (string, string, string, error) {
 	resp, err := client.Get("https://api.github.com/user")
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	defer resp.Body.Close()
 
 	var user struct {
-		Login string `json:"login"`
-		Name  string `json:"name"`
-		Email string `json:"email"`
+		Login     string `json:"login"`
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		AvatarURL string `json:"avatar_url"`
 	}
 	body, _ := io.ReadAll(resp.Body)
 	json.Unmarshal(body, &user)
@@ -174,17 +176,16 @@ func getGitHubUser(client *http.Client) (string, string, error) {
 		name = user.Login
 	}
 
-	// GitHub may not return email in profile — fetch from emails API
 	email := user.Email
 	if email == "" {
 		email, _ = getGitHubPrimaryEmail(client)
 	}
 
 	if email == "" {
-		return "", "", fmt.Errorf("no email found for GitHub user")
+		return "", "", "", fmt.Errorf("no email found for GitHub user")
 	}
 
-	return email, name, nil
+	return email, name, user.AvatarURL, nil
 }
 
 func getGitHubPrimaryEmail(client *http.Client) (string, error) {
