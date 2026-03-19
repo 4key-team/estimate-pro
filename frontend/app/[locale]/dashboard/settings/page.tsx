@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useAuthStore } from "@/features/auth/store";
 import { updateProfile } from "@/features/auth/api";
 
@@ -65,6 +66,13 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center gap-4 pb-2">
+              <UserAvatar name={user?.name} size="lg" />
+              <div>
+                <p className="text-lg font-semibold">{user?.name}</p>
+                <p className="text-sm text-muted-foreground">{user?.email}</p>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>{t("auth.name")}</Label>
               <Input
