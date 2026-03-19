@@ -23,7 +23,7 @@ type RoleChecker interface {
 }
 
 // OnEvent is a callback for real-time event broadcasting.
-type OnEvent func(eventType, projectID string)
+type OnEvent func(eventType, projectID, userID string)
 
 type Handler struct {
 	uc          *usecase.EstimationUsecase
@@ -41,9 +41,9 @@ func New(uc *usecase.EstimationUsecase, roleChecker RoleChecker, onEvent ...OnEv
 
 func (h *Handler) SetOnEvent(fn OnEvent) { h.onEvent = fn }
 
-func (h *Handler) emit(eventType, projectID string) {
+func (h *Handler) emit(eventType, projectID, userID string) {
 	if h.onEvent != nil {
-		h.onEvent(eventType, projectID)
+		h.onEvent(eventType, projectID, userID)
 	}
 }
 
@@ -127,7 +127,7 @@ func (h *Handler) CreateEstimation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.emit("estimation.created", projectID)
+	h.emit("estimation.created", projectID, userID)
 	response.WriteJSON(w, http.StatusCreated, result)
 }
 
@@ -207,7 +207,7 @@ func (h *Handler) SubmitEstimation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.emit("estimation.submitted", chi.URLParam(r, "projectId"))
+	h.emit("estimation.submitted", chi.URLParam(r, "projectId"), userID)
 	response.WriteJSON(w, http.StatusOK, map[string]string{"status": "submitted"})
 }
 

@@ -35,11 +35,16 @@ export function useWebSocket() {
           const data = JSON.parse(event.data);
           const { type, project_id } = data;
 
-          // Show toast
+          // Show toast with dismiss
           const config = EVENT_CONFIG[type];
           if (config) {
             toast(config.title, {
               description: config.description,
+              duration: 5000,
+              action: {
+                label: "👍",
+                onClick: () => {},
+              },
             });
           }
 

@@ -9,6 +9,7 @@ import (
 type Event struct {
 	Type      string `json:"type"`      // e.g. "estimation.submitted"
 	ProjectID string `json:"project_id"`
+	UserID    string `json:"user_id,omitempty"` // who triggered the event (excluded from broadcast)
 	Payload   any    `json:"payload,omitempty"`
 }
 
@@ -61,6 +62,10 @@ func (h *Hub) Run() {
 			}
 			h.mu.RLock()
 			for client := range h.clients {
+				// Skip the user who triggered the event
+				if event.UserID != "" && client.UserID == event.UserID {
+					continue
+				}
 				// Only send to clients that are members of the event's project
 				if event.ProjectID == "" || client.ProjectIDs[event.ProjectID] {
 					select {

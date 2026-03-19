@@ -132,8 +132,8 @@ func main() {
 	// WebSocket hub + event emitter
 	wsHub := wsModule.NewHub()
 	go wsHub.Run()
-	emitEvent := func(eventType, projectID string) {
-		wsHub.Broadcast(wsModule.Event{Type: eventType, ProjectID: projectID})
+	emitEvent := func(eventType, projectID, userID string) {
+		wsHub.Broadcast(wsModule.Event{Type: eventType, ProjectID: projectID, UserID: userID})
 	}
 	documentH.SetOnEvent(emitEvent)
 	estimationH.SetOnEvent(emitEvent)

@@ -17,7 +17,7 @@ import (
 	"github.com/daniilrusanov/estimate-pro/backend/pkg/jwt"
 )
 
-type OnEvent func(eventType, projectID string)
+type OnEvent func(eventType, projectID, userID string)
 
 type Handler struct {
 	uc      *usecase.DocumentUsecase
@@ -34,9 +34,9 @@ func New(uc *usecase.DocumentUsecase, onEvent ...OnEvent) *Handler {
 
 func (h *Handler) SetOnEvent(fn OnEvent) { h.onEvent = fn }
 
-func (h *Handler) emit(eventType, projectID string) {
+func (h *Handler) emit(eventType, projectID, userID string) {
 	if h.onEvent != nil {
-		h.onEvent(eventType, projectID)
+		h.onEvent(eventType, projectID, userID)
 	}
 }
 
@@ -115,7 +115,7 @@ func (h *Handler) UploadDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.emit("document.uploaded", projectID)
+	h.emit("document.uploaded", projectID, userID)
 	response.WriteJSON(w, http.StatusCreated, map[string]any{
 		"document": doc,
 		"version":  version,
