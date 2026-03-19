@@ -249,6 +249,21 @@ func (uc *AuthUsecase) OAuthLogin(ctx context.Context, input OAuthLoginInput) (*
 		}
 	}
 
+	// Update name and avatar from OAuth provider
+	changed := false
+	if input.Name != "" && user.Name != input.Name {
+		user.Name = input.Name
+		changed = true
+	}
+	if input.AvatarURL != "" && user.AvatarURL != input.AvatarURL {
+		user.AvatarURL = input.AvatarURL
+		changed = true
+	}
+	if changed {
+		user.UpdatedAt = time.Now()
+		_ = uc.userRepo.Update(ctx, user)
+	}
+
 	tokens, err := uc.jwtService.GeneratePair(user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("auth.OAuthLogin tokens: %w", err)

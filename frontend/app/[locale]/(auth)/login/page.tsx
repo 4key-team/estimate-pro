@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/features/auth/store";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LocaleToggle } from "@/components/ui/locale-toggle";
 
 export default function LoginPage() {
   const t = useTranslations("auth");
@@ -57,6 +59,10 @@ export default function LoginPage() {
             <ArrowLeft className="h-4 w-4" />
             {tCommon("back")}
           </Link>
+          <div className="absolute right-4 top-4 flex items-center gap-2">
+            <LocaleToggle />
+            <ThemeToggle />
+          </div>
           <Link href="/" className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
               <span className="text-base font-bold text-primary-foreground">
