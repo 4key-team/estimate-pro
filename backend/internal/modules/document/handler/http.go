@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -50,6 +51,8 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 			r.Get("/", h.GetDocument)
 			r.Get("/download", h.DownloadDocument)
 			r.Delete("/", h.DeleteDocument)
+			r.Patch("/versions/{versionId}/flags", h.UpdateVersionFlags)
+			r.Put("/versions/{versionId}/tags", h.SetVersionTags)
 		})
 	})
 }
@@ -179,6 +182,54 @@ func (h *Handler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type updateFlagsRequest struct {
+	IsSigned bool `json:"is_signed"`
+	IsFinal  bool `json:"is_final"`
+}
+
+func (h *Handler) UpdateVersionFlags(w http.ResponseWriter, r *http.Request) {
+	versionID := chi.URLParam(r, "versionId")
+
+	var req updateFlagsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sharedErrors.BadRequest(w, "invalid request body")
+		return
+	}
+
+	if err := h.uc.UpdateVersionFlags(r.Context(), versionID, req.IsSigned, req.IsFinal); err != nil {
+		sharedErrors.InternalError(w, "failed to update version flags")
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type setTagsRequest struct {
+	Tags []string `json:"tags"`
+}
+
+func (h *Handler) SetVersionTags(w http.ResponseWriter, r *http.Request) {
+	versionID := chi.URLParam(r, "versionId")
+
+	var req setTagsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sharedErrors.BadRequest(w, "invalid request body")
+		return
+	}
+
+	if len(req.Tags) > domain.MaxTagsPerVersion {
+		sharedErrors.BadRequest(w, "maximum 3 tags allowed")
+		return
+	}
+
+	if err := h.uc.SetVersionTags(r.Context(), versionID, req.Tags); err != nil {
+		sharedErrors.InternalError(w, "failed to set tags")
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 

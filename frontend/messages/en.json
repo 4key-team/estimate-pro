@@ -268,7 +268,11 @@
     "uploadedBy": "Uploaded by",
     "fileSize": "Size",
     "uploadError": "File upload error",
-    "deleteError": "Error deleting document"
+    "deleteError": "Error deleting document",
+    "signed": "Signed",
+    "sign": "Sign",
+    "finalVersion": "Final",
+    "setFinal": "Final"
   },
   "notifications": {
     "title": "Notifications",

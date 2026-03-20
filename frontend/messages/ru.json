@@ -268,7 +268,11 @@
     "uploadedBy": "Загружено",
     "fileSize": "Размер",
     "uploadError": "Ошибка загрузки файла",
-    "deleteError": "Ошибка удаления документа"
+    "deleteError": "Ошибка удаления документа",
+    "signed": "Подписана",
+    "sign": "Подписать",
+    "finalVersion": "Финальная",
+    "setFinal": "Финальная"
   },
   "notifications": {
     "title": "Уведомления",

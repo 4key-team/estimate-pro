@@ -23,9 +23,17 @@ export interface DocumentVersion {
   file_size: number;
   parsed_status: string;
   confidence_score: number;
+  is_signed: boolean;
+  is_final: boolean;
+  tags?: string[];
   uploaded_by: string;
   uploaded_at: string;
 }
+
+export const PREDEFINED_TAGS = [
+  "на_подпись", "подписана", "на_правках", "отклонена",
+  "черновик", "от_заказчика", "спорная", "архив", "срочно",
+] as const;
 
 export interface DocumentWithVersion {
   document: Document;
@@ -131,6 +139,30 @@ export async function downloadDocument(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export async function updateVersionFlags(
+  projectId: string,
+  docId: string,
+  versionId: string,
+  data: { is_signed: boolean; is_final: boolean }
+): Promise<void> {
+  return apiClient<void>(
+    `/api/v1/projects/${projectId}/documents/${docId}/versions/${versionId}/flags`,
+    { method: "PATCH", body: data }
+  );
+}
+
+export async function setVersionTags(
+  projectId: string,
+  docId: string,
+  versionId: string,
+  tags: string[]
+): Promise<void> {
+  return apiClient<void>(
+    `/api/v1/projects/${projectId}/documents/${docId}/versions/${versionId}/tags`,
+    { method: "PUT", body: { tags } }
+  );
 }
 
 export async function deleteDocument(

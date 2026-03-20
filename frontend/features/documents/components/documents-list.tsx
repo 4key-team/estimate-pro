@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, Download, Trash2, FileText } from "lucide-react";
+import { Upload, Download, Trash2, FileText, CheckCircle2, Star, X, Plus, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,8 +11,12 @@ import {
   uploadDocument,
   downloadDocument,
   deleteDocument,
+  getDocument,
+  updateVersionFlags,
+  setVersionTags,
+  PREDEFINED_TAGS,
 } from "@/features/documents/api";
-import type { Document } from "@/features/documents/api";
+import type { Document, DocumentWithVersion } from "@/features/documents/api";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,6 +40,18 @@ const FILE_TYPE_COLORS: Record<string, string> = {
 };
 
 const ACCEPTED_TYPES = ".pdf,.docx,.doc,.xlsx,.xls,.md,.txt,.csv";
+
+const TAG_COLORS: Record<string, string> = {
+  "на_подпись": "bg-blue-500/10 text-blue-500",
+  "подписана": "bg-green-500/10 text-green-500",
+  "на_правках": "bg-yellow-500/10 text-yellow-600",
+  "отклонена": "bg-red-500/10 text-red-500",
+  "черновик": "bg-gray-500/10 text-gray-500",
+  "от_заказчика": "bg-purple-500/10 text-purple-500",
+  "спорная": "bg-orange-500/10 text-orange-500",
+  "архив": "bg-gray-500/10 text-gray-400",
+  "срочно": "bg-red-600/20 text-red-600",
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -156,62 +172,185 @@ export function DocumentsList({ projectId }: DocumentsListProps) {
         </div>
       ) : (
         <div className="space-y-3">
-          {documents.map((doc) => {
-            const ext = getFileExtension(doc.title);
-            const colorClass =
-              FILE_TYPE_COLORS[ext] ?? FILE_TYPE_COLORS.txt;
-
-            return (
-              <div
-                key={doc.id}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(doc.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  {ext && (
-                    <Badge
-                      variant="secondary"
-                      className={colorClass}
-                    >
-                      {ext.toUpperCase()}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                    onClick={() => handleDownload(doc)}
-                  >
-                    <Download className="h-4 w-4" />
-                    <span className="sr-only">{t("download")}</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(doc)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">{t("delete")}</span>
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+          {documents.map((doc) => (
+            <DocumentCard
+              key={doc.id}
+              doc={doc}
+              projectId={projectId}
+              onDownload={() => handleDownload(doc)}
+              onDelete={() => handleDelete(doc)}
+              isDeleting={deleteMutation.isPending}
+            />
+          ))}
         </div>
       )}
 
       {deleteMutation.isError && (
         <p className="text-xs text-destructive mt-2">{t("deleteError")}</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Document Card with flags + tags
+// ---------------------------------------------------------------------------
+
+function DocumentCard({
+  doc,
+  projectId,
+  onDownload,
+  onDelete,
+  isDeleting,
+}: {
+  doc: Document;
+  projectId: string;
+  onDownload: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
+  const t = useTranslations("documents");
+  const queryClient = useQueryClient();
+  const [showTagPicker, setShowTagPicker] = useState(false);
+
+  const ext = getFileExtension(doc.title);
+  const colorClass = FILE_TYPE_COLORS[ext] ?? FILE_TYPE_COLORS.txt;
+
+  // Fetch document with version details
+  const { data: detail } = useQuery({
+    queryKey: ["document-detail", doc.id],
+    queryFn: () => getDocument(projectId, doc.id),
+  });
+
+  const version = detail?.version;
+
+  const flagsMutation = useMutation({
+    mutationFn: (flags: { is_signed: boolean; is_final: boolean }) =>
+      updateVersionFlags(projectId, doc.id, version!.id, flags),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-detail", doc.id] });
+      queryClient.invalidateQueries({ queryKey: ["documents", projectId] });
+    },
+  });
+
+  const tagsMutation = useMutation({
+    mutationFn: (tags: string[]) =>
+      setVersionTags(projectId, doc.id, version!.id, tags),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-detail", doc.id] });
+    },
+  });
+
+  const currentTags = version?.tags ?? [];
+
+  const toggleTag = (tag: string) => {
+    const newTags = currentTags.includes(tag)
+      ? currentTags.filter((t) => t !== tag)
+      : currentTags.length < 3 ? [...currentTags, tag] : currentTags;
+    tagsMutation.mutate(newTags);
+  };
+
+  const removeTag = (tag: string) => {
+    tagsMutation.mutate(currentTags.filter((t) => t !== tag));
+  };
+
+  return (
+    <div className="rounded-lg border p-4 space-y-3">
+      {/* Top row: file info + actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{doc.title}</p>
+            <p className="text-xs text-muted-foreground">
+              {new Date(doc.created_at).toLocaleDateString()}
+            </p>
+          </div>
+          {ext && (
+            <Badge variant="secondary" className={colorClass}>
+              {ext.toUpperCase()}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={onDownload}>
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={onDelete} disabled={isDeleting}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Flags row */}
+      {version && (
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Signed checkbox */}
+          <button
+            onClick={() => flagsMutation.mutate({ is_signed: !version.is_signed, is_final: version.is_final })}
+            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              version.is_signed
+                ? "border-green-500/30 text-green-500"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {version.is_signed ? t("signed") : t("sign")}
+          </button>
+
+          {/* Final checkbox */}
+          <button
+            onClick={() => flagsMutation.mutate({ is_signed: version.is_signed, is_final: !version.is_final })}
+            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              version.is_final
+                ? "border-amber-500/30 text-amber-500"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Star className="h-3.5 w-3.5" />
+            {version.is_final ? t("finalVersion") : t("setFinal")}
+          </button>
+
+          {/* Tags */}
+          {currentTags.map((tag) => (
+            <span
+              key={tag}
+              className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${TAG_COLORS[tag] ?? "bg-muted text-muted-foreground"}`}
+            >
+              #{tag}
+              <button onClick={() => removeTag(tag)} className="hover:text-foreground">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+
+          {/* Add tag button */}
+          {currentTags.length < 3 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowTagPicker(!showTagPicker)}
+                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Hash className="h-3 w-3" />
+                <Plus className="h-3 w-3" />
+              </button>
+
+              {showTagPicker && (
+                <div className="absolute top-8 left-0 z-50 w-48 rounded-lg border bg-popover p-2 shadow-lg space-y-1">
+                  {PREDEFINED_TAGS.filter((tag) => !currentTags.includes(tag)).map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => { toggleTag(tag); setShowTagPicker(false); }}
+                      className={`w-full text-left text-xs px-2 py-1.5 rounded-md hover:bg-muted transition-colors ${TAG_COLORS[tag] ?? ""}`}
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

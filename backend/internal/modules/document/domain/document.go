@@ -49,6 +49,17 @@ type DocumentVersion struct {
 	FileSize        int64        `json:"file_size"`
 	ParsedStatus    ParsedStatus `json:"parsed_status"`
 	ConfidenceScore float64      `json:"confidence_score"`
+	IsSigned        bool         `json:"is_signed"`
+	IsFinal         bool         `json:"is_final"`
+	Tags            []string     `json:"tags,omitempty"`
 	UploadedBy      string       `json:"uploaded_by"`
 	UploadedAt      time.Time    `json:"uploaded_at,omitzero"`
 }
+
+// Predefined tags
+var PredefinedTags = []string{
+	"на_подпись", "подписана", "на_правках", "отклонена",
+	"черновик", "от_заказчика", "спорная", "архив", "срочно",
+}
+
+const MaxTagsPerVersion = 3

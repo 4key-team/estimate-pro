@@ -17,6 +17,10 @@ type VersionRepository interface {
 	GetByID(ctx context.Context, id string) (*DocumentVersion, error)
 	ListByDocument(ctx context.Context, documentID string) ([]*DocumentVersion, error)
 	GetLatestByDocument(ctx context.Context, documentID string) (*DocumentVersion, error)
+	UpdateFlags(ctx context.Context, id string, isSigned, isFinal bool) error
+	ClearFinal(ctx context.Context, documentID string) error // clear is_final for all versions of a document
+	SetTags(ctx context.Context, versionID string, tags []string) error
+	GetTags(ctx context.Context, versionID string) ([]string, error)
 }
 
 type FileStorage interface {

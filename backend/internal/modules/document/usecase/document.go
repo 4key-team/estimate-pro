@@ -145,6 +145,29 @@ func (uc *DocumentUsecase) Delete(ctx context.Context, id, userID string) error 
 	return nil
 }
 
+func (uc *DocumentUsecase) UpdateVersionFlags(ctx context.Context, versionID string, isSigned, isFinal bool) error {
+	version, err := uc.versionRepo.GetByID(ctx, versionID)
+	if err != nil {
+		return fmt.Errorf("document.UpdateVersionFlags: %w", err)
+	}
+
+	// If setting as final, clear final flag from all other versions of this document
+	if isFinal {
+		if err := uc.versionRepo.ClearFinal(ctx, version.DocumentID); err != nil {
+			return fmt.Errorf("document.UpdateVersionFlags clear: %w", err)
+		}
+	}
+
+	return uc.versionRepo.UpdateFlags(ctx, versionID, isSigned, isFinal)
+}
+
+func (uc *DocumentUsecase) SetVersionTags(ctx context.Context, versionID string, tags []string) error {
+	if len(tags) > domain.MaxTagsPerVersion {
+		return fmt.Errorf("document.SetVersionTags: max %d tags allowed", domain.MaxTagsPerVersion)
+	}
+	return uc.versionRepo.SetTags(ctx, versionID, tags)
+}
+
 func contentTypeByFileType(ft domain.FileType) string {
 	switch ft {
 	case domain.FileTypePDF:
