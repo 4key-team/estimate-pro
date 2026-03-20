@@ -336,7 +336,7 @@ function DocumentCard({
               </button>
 
               {showTagPicker && (
-                <div className="absolute top-8 left-0 z-50 w-48 rounded-lg border bg-popover p-2 shadow-lg space-y-1">
+                <div className="absolute top-8 left-0 z-50 w-52 rounded-lg border bg-popover p-2 shadow-lg space-y-1">
                   {PREDEFINED_TAGS.filter((tag) => !currentTags.includes(tag)).map((tag) => (
                     <button
                       key={tag}
@@ -346,6 +346,28 @@ function DocumentCard({
                       #{tag}
                     </button>
                   ))}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const input = e.currentTarget.elements.namedItem("customTag") as HTMLInputElement;
+                      const val = input.value.trim().replace(/^#/, "").replace(/\s/g, "_");
+                      if (val && !currentTags.includes(val)) {
+                        toggleTag(val);
+                        setShowTagPicker(false);
+                      }
+                    }}
+                    className="flex gap-1 pt-1 border-t border-border mt-1"
+                  >
+                    <input
+                      name="customTag"
+                      placeholder="свой тег..."
+                      className="flex-1 text-xs px-2 py-1 rounded-md bg-background border border-border focus:outline-none"
+                      autoFocus
+                    />
+                    <button type="submit" className="text-xs px-2 py-1 rounded-md hover:bg-muted">
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </form>
                 </div>
               )}
             </div>
