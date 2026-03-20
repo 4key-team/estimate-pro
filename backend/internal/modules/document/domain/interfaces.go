@@ -18,7 +18,8 @@ type VersionRepository interface {
 	ListByDocument(ctx context.Context, documentID string) ([]*DocumentVersion, error)
 	GetLatestByDocument(ctx context.Context, documentID string) (*DocumentVersion, error)
 	UpdateFlags(ctx context.Context, id string, isSigned, isFinal bool) error
-	ClearFinal(ctx context.Context, documentID string) error // clear is_final for all versions of a document
+	ClearFinal(ctx context.Context, documentID string) error             // clear is_final for all versions of a document
+	ClearFinalByProject(ctx context.Context, projectID string) error    // clear is_final for all versions in all documents of a project
 	SetTags(ctx context.Context, versionID string, tags []string) error
 	GetTags(ctx context.Context, versionID string) ([]string, error)
 }

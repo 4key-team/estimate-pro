@@ -160,6 +160,14 @@ func (r *PostgresVersionRepository) ClearFinal(ctx context.Context, documentID s
 	return nil
 }
 
+func (r *PostgresVersionRepository) ClearFinalByProject(ctx context.Context, projectID string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE document_versions SET is_final = false WHERE document_id IN (SELECT id FROM documents WHERE project_id = $1)`, projectID)
+	if err != nil {
+		return fmt.Errorf("version.Repository.ClearFinalByProject: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresVersionRepository) SetTags(ctx context.Context, versionID string, tags []string) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {

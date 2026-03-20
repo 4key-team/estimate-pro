@@ -190,6 +190,7 @@ type updateFlagsRequest struct {
 }
 
 func (h *Handler) UpdateVersionFlags(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "projectId")
 	versionID := chi.URLParam(r, "versionId")
 
 	var req updateFlagsRequest
@@ -198,7 +199,7 @@ func (h *Handler) UpdateVersionFlags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.uc.UpdateVersionFlags(r.Context(), versionID, req.IsSigned, req.IsFinal); err != nil {
+	if err := h.uc.UpdateVersionFlags(r.Context(), projectID, versionID, req.IsSigned, req.IsFinal); err != nil {
 		sharedErrors.InternalError(w, "failed to update version flags")
 		return
 	}

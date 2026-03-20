@@ -149,15 +149,10 @@ func (uc *DocumentUsecase) Delete(ctx context.Context, id, userID string) error 
 	return nil
 }
 
-func (uc *DocumentUsecase) UpdateVersionFlags(ctx context.Context, versionID string, isSigned, isFinal bool) error {
-	version, err := uc.versionRepo.GetByID(ctx, versionID)
-	if err != nil {
-		return fmt.Errorf("document.UpdateVersionFlags: %w", err)
-	}
-
-	// If setting as final, clear final flag from all other versions of this document
+func (uc *DocumentUsecase) UpdateVersionFlags(ctx context.Context, projectID, versionID string, isSigned, isFinal bool) error {
+	// If setting as final, clear final flag from ALL versions in ALL documents of this project
 	if isFinal {
-		if err := uc.versionRepo.ClearFinal(ctx, version.DocumentID); err != nil {
+		if err := uc.versionRepo.ClearFinalByProject(ctx, projectID); err != nil {
 			return fmt.Errorf("document.UpdateVersionFlags clear: %w", err)
 		}
 	}

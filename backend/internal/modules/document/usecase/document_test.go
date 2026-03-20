@@ -82,10 +82,11 @@ func (m *mockVersionRepo) GetLatestByDocument(ctx context.Context, documentID st
 	return nil, nil
 }
 
-func (m *mockVersionRepo) UpdateFlags(_ context.Context, _ string, _, _ bool) error { return nil }
-func (m *mockVersionRepo) ClearFinal(_ context.Context, _ string) error             { return nil }
-func (m *mockVersionRepo) SetTags(_ context.Context, _ string, _ []string) error    { return nil }
-func (m *mockVersionRepo) GetTags(_ context.Context, _ string) ([]string, error)    { return nil, nil }
+func (m *mockVersionRepo) UpdateFlags(_ context.Context, _ string, _, _ bool) error   { return nil }
+func (m *mockVersionRepo) ClearFinal(_ context.Context, _ string) error               { return nil }
+func (m *mockVersionRepo) ClearFinalByProject(_ context.Context, _ string) error      { return nil }
+func (m *mockVersionRepo) SetTags(_ context.Context, _ string, _ []string) error      { return nil }
+func (m *mockVersionRepo) GetTags(_ context.Context, _ string) ([]string, error)      { return nil, nil }
 
 type mockFileStorage struct {
 	uploadFn   func(ctx context.Context, key string, data io.Reader, size int64, contentType string) error
