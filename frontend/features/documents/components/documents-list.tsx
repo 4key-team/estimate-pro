@@ -228,7 +228,7 @@ function DocumentCard({
     mutationFn: (flags: { is_signed: boolean; is_final: boolean }) =>
       updateVersionFlags(projectId, doc.id, version!.id, flags),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-detail", doc.id] });
+      queryClient.invalidateQueries({ queryKey: ["document-detail"] });
       queryClient.invalidateQueries({ queryKey: ["documents", projectId] });
     },
   });
