@@ -37,8 +37,17 @@ import (
 
 	estimationHandler "github.com/daniilrusanov/estimate-pro/backend/internal/modules/estimation/handler"
 	estimationRepo "github.com/daniilrusanov/estimate-pro/backend/internal/modules/estimation/repo"
-	wsModule "github.com/daniilrusanov/estimate-pro/backend/internal/modules/ws"
 	estimationUsecase "github.com/daniilrusanov/estimate-pro/backend/internal/modules/estimation/usecase"
+
+	notifyModule "github.com/daniilrusanov/estimate-pro/backend/internal/modules/notify"
+	notifyChannel "github.com/daniilrusanov/estimate-pro/backend/internal/modules/notify/channel"
+	notifyHandler "github.com/daniilrusanov/estimate-pro/backend/internal/modules/notify/handler"
+	notifyRepo "github.com/daniilrusanov/estimate-pro/backend/internal/modules/notify/repository"
+	notifyUsecase "github.com/daniilrusanov/estimate-pro/backend/internal/modules/notify/usecase"
+
+	wsModule "github.com/daniilrusanov/estimate-pro/backend/internal/modules/ws"
+
+	"github.com/daniilrusanov/estimate-pro/backend/internal/infra/composio"
 )
 
 func main() {
@@ -100,12 +109,26 @@ func main() {
 	estRepository := estimationRepo.NewPostgresEstimationRepository(pool)
 	estItemRepo := estimationRepo.NewPostgresItemRepository(pool)
 
+	// Notification repositories
+	notifRepository := notifyRepo.NewPostgresNotificationRepository(pool)
+	prefRepository := notifyRepo.NewPostgresPreferenceRepository(pool)
+	deliveryLogRepo := notifyRepo.NewPostgresDeliveryLogRepository(pool)
+
+	// Composio client + external senders
+	composioClient := composio.NewClient(cfg.Composio.APIKey)
+	emailLookup := notifyRepo.NewEmailLookup(pool)
+	emailSender := notifyChannel.NewEmailSender(composioClient, cfg.Composio.GmailAccountID, emailLookup)
+	telegramLookup := notifyRepo.NewTelegramChatLookup(pool)
+	telegramSender := notifyChannel.NewTelegramSender(composioClient, cfg.Composio.TelegramAccountID, telegramLookup)
+	memberLister := notifyRepo.NewMemberListerAdapter(pool)
+
 	// Usecases
 	membershipChecker := authRepo.NewPostgresMembershipChecker(pool)
 	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService, tokenStore, &avatarStorageAdapter{s3Client}, membershipChecker)
 	projectUC := projectUsecase.New(projectRepository, workspaceRepo, memberRepo)
 	documentUC := documentUsecase.New(docRepository, versionRepo, fileStorage)
 	estimationUC := estimationUsecase.New(estRepository, estItemRepo)
+	notifyUC := notifyUsecase.New(notifRepository, prefRepository, deliveryLogRepo, memberLister, emailSender, telegramSender)
 
 	// Handlers
 	authH := authHandler.New(authUC)
@@ -129,11 +152,16 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// Notification dispatcher
+	userNameLookup := notifyRepo.NewUserNameLookup(pool)
+	notifyDispatcher := notifyModule.NewDispatcher(notifyUC, userNameLookup, ctx)
+
 	// WebSocket hub + event emitter
 	wsHub := wsModule.NewHub()
 	go wsHub.Run()
 	emitEvent := func(eventType, projectID, userID string) {
 		wsHub.Broadcast(wsModule.Event{Type: eventType, ProjectID: projectID, UserID: userID})
+		notifyDispatcher.HandleEvent(eventType, projectID, userID)
 	}
 	documentH.SetOnEvent(emitEvent)
 	estimationH.SetOnEvent(emitEvent)
@@ -149,6 +177,9 @@ func main() {
 	// OAuth handler
 	oauthH := authHandler.NewOAuthHandler(authUC, cfg.OAuth)
 
+	// Notification handler
+	notifyH := notifyHandler.New(notifyUC)
+
 	// Module routes
 	authH.Register(r, jwtService)
 	oauthH.Register(r)
@@ -156,6 +187,7 @@ func main() {
 	projectH.Register(r, jwtService)
 	documentH.Register(r, jwtService)
 	estimationH.Register(r, jwtService)
+	notifyH.Register(r, jwtService)
 
 	// Server
 	srv := &http.Server{

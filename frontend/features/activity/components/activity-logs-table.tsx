@@ -19,6 +19,7 @@ export interface ActivityLog {
   timestamp: string;
   level: ActivityLevel;
   service: string; // project name
+  eventType?: string; // event type label (translated)
   message: string;
   status: string;
   tags: string[];
@@ -27,6 +28,7 @@ export interface ActivityLog {
 type Filters = {
   level: string[];
   service: string[];
+  eventType: string[];
   status: string[];
 };
 
@@ -103,7 +105,7 @@ function LogRow({
             {levelLabels[log.level]}
           </Badge>
 
-          <time className="w-24 flex-shrink-0 font-mono text-xs text-muted-foreground">
+          <time className="w-24 flex-shrink-0 font-mono text-xs text-muted-foreground" suppressHydrationWarning>
             {formattedDate} {formattedTime}
           </time>
 
@@ -156,7 +158,7 @@ function LogRow({
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {t("logsTimestamp")}
                   </p>
-                  <p className="font-mono text-xs text-foreground">
+                  <p className="font-mono text-xs text-foreground" suppressHydrationWarning>
                     {new Date(log.timestamp).toLocaleString()}
                   </p>
                 </div>
@@ -200,6 +202,7 @@ function FilterPanel({
   const t = useTranslations("dashboard");
   const services = useMemo(() => [...new Set(logs.map((l) => l.service))], [logs]);
   const levels = useMemo(() => [...new Set(logs.map((l) => l.level))], [logs]);
+  const eventTypes = useMemo(() => [...new Set(logs.map((l) => l.eventType).filter(Boolean))] as string[], [logs]);
   const statuses = useMemo(() => [...new Set(logs.map((l) => l.status))], [logs]);
 
   const toggleFilter = (key: keyof Filters, value: string) => {
@@ -258,6 +261,31 @@ function FilterPanel({
         </div>
       </div>
 
+      {eventTypes.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("logsEventType")}</p>
+          <div className="space-y-2">
+            {eventTypes.map((et) => {
+              const selected = filters.eventType.includes(et);
+              return (
+                <motion.button
+                  key={et}
+                  type="button"
+                  whileHover={{ x: 2 }}
+                  onClick={() => toggleFilter("eventType", et)}
+                  className={`flex w-full items-center justify-between gap-2 border rounded-md px-3 py-2 text-sm transition-colors ${
+                    selected ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  <span>{et}</span>
+                  {selected && <Check className="h-3.5 w-3.5" />}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("logsStatus")}</p>
         <div className="space-y-2">
@@ -302,6 +330,7 @@ export function ActivityLogsTable({ logs, title, subtitle }: ActivityLogsTablePr
   const [filters, setFilters] = useState<Filters>({
     level: [],
     service: [],
+    eventType: [],
     status: [],
   });
 
@@ -313,12 +342,13 @@ export function ActivityLogsTable({ logs, title, subtitle }: ActivityLogsTablePr
         log.service.toLowerCase().includes(lowerQuery);
       const matchLevel = filters.level.length === 0 || filters.level.includes(log.level);
       const matchService = filters.service.length === 0 || filters.service.includes(log.service);
+      const matchEventType = filters.eventType.length === 0 || (log.eventType && filters.eventType.includes(log.eventType));
       const matchStatus = filters.status.length === 0 || filters.status.includes(log.status);
-      return matchSearch && matchLevel && matchService && matchStatus;
+      return matchSearch && matchLevel && matchService && matchEventType && matchStatus;
     });
   }, [logs, filters, searchQuery]);
 
-  const activeFilters = filters.level.length + filters.service.length + filters.status.length;
+  const activeFilters = filters.level.length + filters.service.length + filters.eventType.length + filters.status.length;
 
   if (logs.length === 0) return null;
 

@@ -74,6 +74,9 @@ export function useWebSocket() {
             );
           }
 
+          // Invalidate notification queries (bell + list)
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+
           // Invalidate caches
           if (type?.startsWith("estimation.") && project_id) {
             queryClient.invalidateQueries({ queryKey: ["estimations", project_id] });

@@ -241,6 +241,7 @@
     "logsTimestamp": "Timestamp",
     "logsTags": "Tags",
     "logsLevel": "Level",
+    "logsEventType": "Event type",
     "logsStatus": "Status",
     "logsEmpty": "No logs match your filters"
   },
@@ -253,7 +254,13 @@
     "theme": "Theme",
     "themeDesc": "Toggle between light and dark mode",
     "notificationsDesc": "Configure how you receive notifications",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "channelInApp": "In-App",
+    "channelEmail": "Email (Gmail)",
+    "channelTelegram": "Telegram",
+    "channelInAppDesc": "Notifications in the bell icon",
+    "channelEmailDesc": "Send to your email",
+    "channelTelegramDesc": "Messages via Telegram"
   },
   "documents": {
     "title": "Documents",
@@ -277,6 +284,20 @@
   "notifications": {
     "title": "Notifications",
     "empty": "No new notifications",
-    "emptyDesc": "Notifications about events in your projects will appear here"
+    "emptyDesc": "Notifications about events in your projects will appear here",
+    "markAllRead": "Mark all read",
+    "viewAll": "View all",
+    "justNow": "just now",
+    "markAsRead": "Read",
+    "statusRead": "Read",
+    "statusUnread": "Unread",
+    "unknownProject": "Unknown project",
+    "noProject": "No project",
+    "eventType": {
+      "member_added": "Member added",
+      "document_uploaded": "Document uploaded",
+      "estimation_submitted": "Estimation submitted",
+      "estimation_aggregated": "Estimation results"
+    }
   }
 }

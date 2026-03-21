@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useMutation } from "@tanstack/react-query";
-import { Bell, Globe, User, Check, Camera } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell, Globe, User, Check, Camera, Mail, MessageCircle, BellRing } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -18,6 +18,8 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useAuthStore } from "@/features/auth/store";
 import { updateProfile, uploadAvatar } from "@/features/auth/api";
+import { Switch } from "@/components/ui/switch";
+import { getPreferences, setPreference, type NotificationPreference } from "@/features/notifications/api";
 
 export default function SettingsPage() {
   const t = useTranslations();
@@ -148,25 +150,95 @@ export default function SettingsPage() {
         </Card>
 
         {/* Notifications */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-lg">
-                {t("dashboard.notifications")}
-              </CardTitle>
-            </div>
-            <CardDescription>
-              {t("settings.notificationsDesc")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground py-4 text-center">
-              {t("settings.comingSoon")}
-            </div>
-          </CardContent>
-        </Card>
+        <NotificationPreferences />
       </div>
     </div>
+  );
+}
+
+function NotificationPreferences() {
+  const t = useTranslations();
+  const queryClient = useQueryClient();
+
+  const { data } = useQuery({
+    queryKey: ["notifications", "preferences"],
+    queryFn: getPreferences,
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ channel, enabled }: { channel: string; enabled: boolean }) =>
+      setPreference(channel, enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications", "preferences"] });
+    },
+  });
+
+  const prefs = data?.preferences ?? [];
+
+  const channels = [
+    {
+      key: "in_app" as const,
+      icon: <BellRing className="h-4 w-4" />,
+      label: t("settings.channelInApp"),
+      desc: t("settings.channelInAppDesc"),
+      disabled: true,
+    },
+    {
+      key: "email" as const,
+      icon: <Mail className="h-4 w-4" />,
+      label: t("settings.channelEmail"),
+      desc: t("settings.channelEmailDesc"),
+      disabled: false,
+    },
+    {
+      key: "telegram" as const,
+      icon: <MessageCircle className="h-4 w-4" />,
+      label: t("settings.channelTelegram"),
+      desc: t("settings.channelTelegramDesc"),
+      disabled: false,
+    },
+  ];
+
+  const isEnabled = (channel: string) => {
+    const pref = prefs.find((p: NotificationPreference) => p.channel === channel);
+    return pref?.enabled ?? channel === "in_app";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Bell className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-lg">
+            {t("dashboard.notifications")}
+          </CardTitle>
+        </div>
+        <CardDescription>
+          {t("settings.notificationsDesc")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {channels.map((ch) => (
+          <div key={ch.key} className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-muted-foreground">{ch.icon}</div>
+              <div>
+                <p className="text-sm font-medium">{ch.label}</p>
+                <p className="text-xs text-muted-foreground">{ch.desc}</p>
+              </div>
+            </div>
+            <Switch
+              checked={isEnabled(ch.key)}
+              onCheckedChange={(checked: boolean) => {
+                if (!ch.disabled) {
+                  toggleMutation.mutate({ channel: ch.key, enabled: checked });
+                }
+              }}
+              disabled={ch.disabled || toggleMutation.isPending}
+            />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

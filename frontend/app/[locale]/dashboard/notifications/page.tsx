@@ -2,70 +2,101 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CheckCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { listProjects } from "@/features/projects/api";
-import { listDocuments, type Document as DocType } from "@/features/documents/api";
-import { listEstimations, type Estimation } from "@/features/estimation/api";
-import { ActivityLogsTable, type ActivityLog } from "@/features/activity/components/activity-logs-table";
+import {
+  listNotifications,
+  markAllRead,
+  type Notification,
+} from "@/features/notifications/api";
+import {
+  ActivityLogsTable,
+  type ActivityLog,
+  type ActivityLevel,
+} from "@/features/activity/components/activity-logs-table";
+
+const eventLevelMap: Record<string, ActivityLevel> = {
+  "member.added": "info",
+  "document.uploaded": "success",
+  "estimation.submitted": "info",
+  "estimation.aggregated": "success",
+};
 
 export default function NotificationsPage() {
   const t = useTranslations();
+  const queryClient = useQueryClient();
+
+  const { data } = useQuery({
+    queryKey: ["notifications", "list", 1],
+    queryFn: () => listNotifications(1, 50),
+  });
+
   const { data: projectsData } = useQuery({
     queryKey: ["projects"],
     queryFn: () => listProjects(),
   });
 
+  const markAllReadMutation = useMutation({
+    mutationFn: markAllRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  const notifications = data?.notifications ?? [];
   const projects = projectsData?.projects ?? [];
+  const hasUnread = notifications.some((n: Notification) => !n.read);
 
-  const docQueries = useQueries({
-    queries: projects.map((p) => ({
-      queryKey: ["documents", p.id],
-      queryFn: () => listDocuments(p.id),
-    })),
-  });
+  const projectNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of projects) {
+      map[p.id] = p.name;
+    }
+    return map;
+  }, [projects]);
 
-  const estQueries = useQueries({
-    queries: projects.map((p) => ({
-      queryKey: ["estimations", p.id],
-      queryFn: () => listEstimations(p.id),
-    })),
-  });
+  const eventTypeLabel = (eventType: string): string => {
+    const key = `notifications.eventType.${eventType.replace(".", "_")}`;
+    return t(key);
+  };
+
+  const statusLabel = (read: boolean): string => {
+    return read ? t("notifications.statusRead") : t("notifications.statusUnread");
+  };
 
   const logs: ActivityLog[] = useMemo(() => {
-    const items: ActivityLog[] = [];
-    let counter = 0;
-
-    projects.forEach((p, idx) => {
-      (docQueries[idx]?.data ?? []).forEach((d: DocType) => {
-        items.push({
-          id: String(++counter),
-          timestamp: d.created_at,
-          level: "success",
-          service: p.name,
-          message: `Загружен документ: ${d.title}`,
-          status: "uploaded",
-          tags: ["document", p.name],
-        });
-      });
-      (estQueries[idx]?.data ?? []).forEach((e: Estimation) => {
-        items.push({
-          id: String(++counter),
-          timestamp: e.created_at,
-          level: e.status === "submitted" ? "info" : "warning",
-          service: p.name,
-          message: e.status === "submitted" ? "Оценка отправлена" : "Оценка создана (черновик)",
-          status: e.status === "submitted" ? "submitted" : "draft",
-          tags: ["estimation", p.name],
-        });
-      });
-    });
-
-    return items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [projects, docQueries, estQueries]);
+    return notifications.map((n: Notification) => ({
+      id: n.id,
+      timestamp: n.created_at,
+      level: eventLevelMap[n.event_type] ?? ("info" as ActivityLevel),
+      service: n.project_id ? (projectNameMap[n.project_id] ?? t("notifications.unknownProject")) : t("notifications.noProject"),
+      eventType: eventTypeLabel(n.event_type),
+      message: n.message,
+      status: statusLabel(n.read),
+      tags: [eventTypeLabel(n.event_type)],
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifications, projectNameMap]);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight mb-8">{t("notifications.title")}</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">{t("notifications.title")}</h1>
+        {hasUnread && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => markAllReadMutation.mutate()}
+            disabled={markAllReadMutation.isPending}
+          >
+            <CheckCheck className="h-4 w-4" />
+            {t("notifications.markAllRead")}
+          </Button>
+        )}
+      </div>
       <ActivityLogsTable logs={logs} />
     </div>
   );

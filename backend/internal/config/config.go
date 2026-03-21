@@ -12,8 +12,7 @@ type Config struct {
 	RedisURL    string
 	S3          S3Config
 	JWT         JWTConfig
-	SMTP        SMTPConfig
-	Telegram    TelegramConfig
+	Composio    ComposioConfig
 	OAuth       OAuthConfig
 }
 
@@ -31,15 +30,10 @@ type JWTConfig struct {
 	RefreshTTL time.Duration
 }
 
-type SMTPConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-}
-
-type TelegramConfig struct {
-	BotToken string
+type ComposioConfig struct {
+	APIKey            string
+	GmailAccountID    string
+	TelegramAccountID string
 }
 
 type OAuthConfig struct {
@@ -67,14 +61,10 @@ func Load() Config {
 			AccessTTL:  parseDuration(os.Getenv("JWT_ACCESS_TTL"), 15*time.Minute),
 			RefreshTTL: parseDuration(os.Getenv("JWT_REFRESH_TTL"), 30*24*time.Hour),
 		},
-		SMTP: SMTPConfig{
-			Host:     os.Getenv("SMTP_HOST"),
-			Port:     cmp.Or(os.Getenv("SMTP_PORT"), "587"),
-			User:     os.Getenv("SMTP_USER"),
-			Password: os.Getenv("SMTP_PASSWORD"),
-		},
-		Telegram: TelegramConfig{
-			BotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
+		Composio: ComposioConfig{
+			APIKey:            os.Getenv("COMPOSIO_API_KEY"),
+			GmailAccountID:    os.Getenv("COMPOSIO_GMAIL_ACCOUNT_ID"),
+			TelegramAccountID: os.Getenv("COMPOSIO_TELEGRAM_ACCOUNT_ID"),
 		},
 		OAuth: OAuthConfig{
 			GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),

@@ -25,6 +25,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 
 export default function DashboardLayout({
   children,
@@ -96,6 +97,7 @@ export default function DashboardLayout({
           </span>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <LocaleToggle />
           <ThemeToggle />
           <HoverCard openDelay={200} closeDelay={100}>

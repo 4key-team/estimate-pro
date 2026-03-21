@@ -241,6 +241,7 @@
     "logsTimestamp": "Время",
     "logsTags": "Теги",
     "logsLevel": "Уровень",
+    "logsEventType": "Тип события",
     "logsStatus": "Статус",
     "logsEmpty": "Нет записей по выбранным фильтрам"
   },
@@ -253,7 +254,13 @@
     "theme": "Тема",
     "themeDesc": "Переключение между светлой и тёмной темой",
     "notificationsDesc": "Настройте способы получения уведомлений",
-    "comingSoon": "Скоро будет доступно"
+    "comingSoon": "Скоро будет доступно",
+    "channelInApp": "В приложении",
+    "channelEmail": "Email (Gmail)",
+    "channelTelegram": "Telegram",
+    "channelInAppDesc": "Уведомления в колокольчике",
+    "channelEmailDesc": "Отправка на вашу почту",
+    "channelTelegramDesc": "Сообщения в Telegram"
   },
   "documents": {
     "title": "Документы",
@@ -277,6 +284,20 @@
   "notifications": {
     "title": "Уведомления",
     "empty": "Нет новых уведомлений",
-    "emptyDesc": "Здесь будут появляться уведомления о событиях в ваших проектах"
+    "emptyDesc": "Здесь будут появляться уведомления о событиях в ваших проектах",
+    "markAllRead": "Прочитать все",
+    "viewAll": "Все уведомления",
+    "justNow": "сейчас",
+    "markAsRead": "Прочитано",
+    "statusRead": "Прочитано",
+    "statusUnread": "Не прочитано",
+    "unknownProject": "Неизвестный проект",
+    "noProject": "Без проекта",
+    "eventType": {
+      "member_added": "Новый участник",
+      "document_uploaded": "Документ загружен",
+      "estimation_submitted": "Оценка отправлена",
+      "estimation_aggregated": "Результаты оценки"
+    }
   }
 }
