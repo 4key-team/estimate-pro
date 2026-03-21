@@ -58,7 +58,8 @@ export default function NotificationsPage() {
       map[p.id] = p.name;
     }
     return map;
-  }, [projects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- projects reference is stable from ?? default
+  }, [projectsData]);
 
   const eventTypeLabel = (eventType: string): string => {
     const key = `notifications.eventType.${eventType.replace(".", "_")}`;
@@ -69,6 +70,22 @@ export default function NotificationsPage() {
     return read ? t("notifications.statusRead") : t("notifications.statusUnread");
   };
 
+  const MESSAGE_SUFFIXES: Record<string, string> = {
+    "member.added": " added to project",
+    "document.uploaded": " uploaded a document",
+    "estimation.submitted": " submitted an estimation",
+    "estimation.aggregated": "Estimation aggregated by ",
+  };
+
+  const formatMessage = (eventType: string, message: string): string => {
+    const suffix = MESSAGE_SUFFIXES[eventType];
+    if (!suffix) return message;
+    const name = eventType === "estimation.aggregated"
+      ? message.replace(suffix, "")
+      : message.replace(suffix, "");
+    return t(`notifications.eventMessage.${eventType.replace(".", "_")}`, { name });
+  };
+
   const logs: ActivityLog[] = useMemo(() => {
     return notifications.map((n: Notification) => ({
       id: n.id,
@@ -76,7 +93,7 @@ export default function NotificationsPage() {
       level: eventLevelMap[n.event_type] ?? ("info" as ActivityLevel),
       service: n.project_id ? (projectNameMap[n.project_id] ?? t("notifications.unknownProject")) : t("notifications.noProject"),
       eventType: eventTypeLabel(n.event_type),
-      message: n.message,
+      message: formatMessage(n.event_type, n.message),
       status: statusLabel(n.read),
       tags: [eventTypeLabel(n.event_type)],
     }));

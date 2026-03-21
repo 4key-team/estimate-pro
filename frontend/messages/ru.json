@@ -298,6 +298,12 @@
       "document_uploaded": "Документ загружен",
       "estimation_submitted": "Оценка отправлена",
       "estimation_aggregated": "Результаты оценки"
+    },
+    "eventMessage": {
+      "member_added": "{name} добавлен в проект",
+      "document_uploaded": "{name} загрузил документ",
+      "estimation_submitted": "{name} отправил оценку",
+      "estimation_aggregated": "Оценка агрегирована — {name}"
     }
   }
 }

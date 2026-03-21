@@ -28,12 +28,13 @@ export function NotificationBell() {
   const { data: unreadData } = useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: getUnreadCount,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const { data: notifData } = useQuery({
     queryKey: ["notifications", "list", 1],
     queryFn: () => listNotifications(1, 5),
+    refetchInterval: 10000,
   });
 
   const markReadMutation = useMutation({
@@ -58,7 +59,30 @@ export function NotificationBell() {
     return t(key);
   };
 
+  const MESSAGE_SUFFIXES: Record<string, string> = {
+    "member.added": " added to project",
+    "document.uploaded": " uploaded a document",
+    "estimation.submitted": " submitted an estimation",
+    "estimation.aggregated": "Estimation aggregated by ",
+  };
+
+  const formatMessage = (eventType: string, message: string) => {
+    const suffix = MESSAGE_SUFFIXES[eventType];
+    if (!suffix) return message;
+
+    let name: string;
+    if (eventType === "estimation.aggregated") {
+      name = message.replace(suffix, "");
+    } else {
+      name = message.replace(suffix, "");
+    }
+
+    const key = `eventMessage.${eventType.replace(".", "_")}`;
+    return t(key, { name });
+  };
+
   const formatTime = (dateStr: string) => {
+    // eslint-disable-next-line react-hooks/purity -- Date.now() for display-only relative time is acceptable
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return t("justNow");
@@ -134,7 +158,7 @@ export function NotificationBell() {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {item.message}
+                  {formatMessage(item.event_type, item.message)}
                 </p>
               </button>
             ))}

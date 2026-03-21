@@ -5,7 +5,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Version](https://img.shields.io/badge/version-0.6.0-blue)
 
 **Коллаборативная платформа для оценки проектов.**
 
@@ -267,11 +267,11 @@ cd frontend && npx tsc --noEmit
 
 Проект следует [Semantic Versioning](https://semver.org/):
 
-**Текущая версия: `0.5.0`**
+**Текущая версия: `0.6.0`**
 
 ### Changelog
 
-#### v0.5.0 (2026-03-20)
+#### v0.6.0 (2026-03-20)
 - Document version flags: чекбокс «Подписана» и «Финальная версия»
 - Хэштеги для версий документов (max 3, 9 предустановленных + кастомные)
 - WebSocket real-time обновления с Sonner toast и анимированным сердечком

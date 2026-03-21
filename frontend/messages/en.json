@@ -298,6 +298,12 @@
       "document_uploaded": "Document uploaded",
       "estimation_submitted": "Estimation submitted",
       "estimation_aggregated": "Estimation results"
+    },
+    "eventMessage": {
+      "member_added": "{name} added to project",
+      "document_uploaded": "{name} uploaded a document",
+      "estimation_submitted": "{name} submitted an estimation",
+      "estimation_aggregated": "Estimation aggregated by {name}"
     }
   }
 }
