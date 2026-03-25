@@ -29,6 +29,7 @@ backend/server
 # Tools
 .serena/
 .taskmaster/
+CLAUDE.md
 
 # Test
 coverage.out

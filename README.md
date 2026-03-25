@@ -5,7 +5,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.6.0-blue)
+![Version](https://img.shields.io/badge/version-0.7.0-blue)
 
 **Коллаборативная платформа для оценки проектов.**
 
@@ -23,6 +23,7 @@
 * **Мультиязычность** — Русский (по умолчанию) и English. Уведомления на языке пользователя
 * **Тёмная/светлая тема** — Адаптивный интерфейс с Three.js Aurora шейдером на лендинге
 * **JWT авторизация** — Access/Refresh токены в Redis, авто-обновление при 401
+* **UI/UX концепт** — Дизайн-макеты всех экранов в `frontend/design/concept.pen` (light + dark)
 
 ## Архитектура
 
@@ -267,9 +268,17 @@ cd frontend && npx tsc --noEmit
 
 Проект следует [Semantic Versioning](https://semver.org/):
 
-**Текущая версия: `0.6.0`**
+**Текущая версия: `0.7.0`**
 
 ### Changelog
+
+#### v0.7.0 (2026-03-25)
+- **UI/UX Design Concept**: `frontend/design/concept.pen` — 12 экранов (6 страниц × light/dark)
+  - Landing, Login, Register, Dashboard, Project Detail, Settings
+  - Разработка UI/UX велась по концепту, максимально близко к реализации
+- Dashboard: estimation chart (вертикальные бары по проектам), stats, workspaces, project progress
+- Settings: Profile (аватар + имя), Appearance (ThemeToggle), Notifications (3 канала с Switch)
+- Обновлена проектная документация
 
 #### v0.6.0 (2026-03-20)
 - Document version flags: чекбокс «Подписана» и «Финальная версия»
