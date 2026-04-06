@@ -97,6 +97,16 @@ export async function updateProject(
   });
 }
 
+export async function updateWorkspace(
+  id: string,
+  data: { name: string }
+) {
+  return apiClient<Workspace>(`/api/v1/workspaces/${id}`, {
+    method: "PATCH",
+    body: data,
+  });
+}
+
 export async function archiveProject(id: string) {
   return apiClient<Project>(`/api/v1/projects/${id}`, {
     method: "DELETE",

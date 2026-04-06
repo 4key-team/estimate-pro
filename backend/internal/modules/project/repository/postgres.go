@@ -177,6 +177,18 @@ func (r *PostgresWorkspaceRepository) ListByUser(ctx context.Context, userID str
 	return workspaces, nil
 }
 
+func (r *PostgresWorkspaceRepository) Update(ctx context.Context, ws *domain.Workspace) error {
+	query := `UPDATE workspaces SET name = $1 WHERE id = $2 AND owner_id = $3`
+	tag, err := r.pool.Exec(ctx, query, ws.Name, ws.ID, ws.OwnerID)
+	if err != nil {
+		return fmt.Errorf("workspace.Repository.Update: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrWorkspaceNotFound
+	}
+	return nil
+}
+
 // Member repository
 
 type PostgresMemberRepository struct {

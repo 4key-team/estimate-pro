@@ -5,7 +5,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/features/auth/store";
 import {
   Plus,
@@ -17,7 +17,8 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
-import { listWorkspaces, listProjects, listMembers, type Workspace } from "@/features/projects/api";
+import { listWorkspaces, listProjects, listMembers, updateWorkspace, type Workspace } from "@/features/projects/api";
+import { InlineEdit } from "@/components/ui/inline-edit";
 import { listDocuments } from "@/features/documents/api";
 import { listEstimations, getAggregated, type Estimation, type AggregatedResult } from "@/features/estimation/api";
 
@@ -35,10 +36,20 @@ export default function DashboardPage() {
 
   // ---- Data fetching ----
 
+  const queryClient = useQueryClient();
+
   const { data: workspaces } = useQuery({
     queryKey: ["workspaces"],
     queryFn: listWorkspaces,
     retry: false,
+  });
+
+  const renameWorkspaceMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      updateWorkspace(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
   });
 
   const { data: projectsData } = useQuery({
@@ -159,22 +170,30 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold mb-4">{t("dashboard.overview")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {(workspaces ?? []).map((ws: Workspace) => (
-              <Link
+              <div
                 key={ws.id}
-                href="/dashboard/projects"
-                className="rounded-2xl border border-foreground/10 bg-background p-6 cursor-pointer transition-colors duration-200 hover:bg-muted block"
+                className="rounded-2xl border border-foreground/10 bg-background p-6 transition-colors duration-200 hover:bg-muted"
               >
-                <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-muted/50 mb-4">
-                  <LayoutGrid className="h-5 w-5 text-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{ws.name}</h3>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <FolderKanban className="h-3.5 w-3.5" />
-                    {t("dashboard.workspaceProjects", { count: projectCount })}
-                  </span>
-                </div>
-              </Link>
+                <Link href="/dashboard/projects">
+                  <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-muted/50 mb-4">
+                    <LayoutGrid className="h-5 w-5 text-foreground" />
+                  </div>
+                </Link>
+                <InlineEdit
+                  value={ws.name}
+                  onSave={(name) => renameWorkspaceMutation.mutate({ id: ws.id, name })}
+                  className="text-lg font-semibold mb-2"
+                  inputClassName="text-lg font-semibold h-8"
+                />
+                <Link href="/dashboard/projects">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                    <span className="inline-flex items-center gap-1">
+                      <FolderKanban className="h-3.5 w-3.5" />
+                      {t("dashboard.workspaceProjects", { count: projectCount })}
+                    </span>
+                  </div>
+                </Link>
+              </div>
           ))}
 
           {/* Create workspace card */}
