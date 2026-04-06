@@ -177,6 +177,18 @@ func (r *PostgresWorkspaceRepository) ListByUser(ctx context.Context, userID str
 	return workspaces, nil
 }
 
+func (r *PostgresWorkspaceRepository) Update(ctx context.Context, ws *domain.Workspace) error {
+	query := `UPDATE workspaces SET name = $1 WHERE id = $2 AND owner_id = $3`
+	tag, err := r.pool.Exec(ctx, query, ws.Name, ws.ID, ws.OwnerID)
+	if err != nil {
+		return fmt.Errorf("workspace.Repository.Update: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrWorkspaceNotFound
+	}
+	return nil
+}
+
 // Member repository
 
 type PostgresMemberRepository struct {
@@ -188,12 +200,19 @@ func NewPostgresMemberRepository(pool *pgxpool.Pool) *PostgresMemberRepository {
 }
 
 func (r *PostgresMemberRepository) Add(ctx context.Context, member *domain.Member) error {
-	query := `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, $3)`
-	_, err := r.pool.Exec(ctx, query, member.ProjectID, member.UserID, member.Role)
+	query := `INSERT INTO project_members (project_id, user_id, role, added_by, added_at) VALUES ($1, $2, $3, $4, $5)`
+	_, err := r.pool.Exec(ctx, query, member.ProjectID, member.UserID, member.Role, nilIfEmpty(member.AddedBy), member.AddedAt)
 	if err != nil {
 		return fmt.Errorf("member.Repository.Add: %w", err)
 	}
 	return nil
+}
+
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func (r *PostgresMemberRepository) Remove(ctx context.Context, projectID, userID string) error {

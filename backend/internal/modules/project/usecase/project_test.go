@@ -32,6 +32,14 @@ func (m *mockWorkspaceRepo) ListByUser(_ context.Context, _ string) ([]*domain.W
 	return nil, nil
 }
 
+func (m *mockWorkspaceRepo) Update(_ context.Context, ws *domain.Workspace) error {
+	if _, ok := m.workspaces[ws.ID]; !ok {
+		return domain.ErrWorkspaceNotFound
+	}
+	m.workspaces[ws.ID] = ws
+	return nil
+}
+
 // --- Enhanced project repo for tests ---
 
 type testProjectRepo struct {

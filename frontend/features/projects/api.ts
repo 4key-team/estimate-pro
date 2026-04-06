@@ -97,6 +97,34 @@ export async function updateProject(
   });
 }
 
+export interface UserSearchResult {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url?: string;
+}
+
+export async function searchUsers(query: string) {
+  return apiClient<UserSearchResult[]>(`/api/v1/auth/users/search?q=${encodeURIComponent(query)}`);
+}
+
+export async function listColleagues() {
+  return apiClient<UserSearchResult[]>("/api/v1/auth/users/colleagues");
+}
+export async function updateWorkspace(
+  id: string,
+  data: { name: string }
+) {
+  return apiClient<Workspace>(`/api/v1/workspaces/${id}`, {
+    method: "PATCH",
+    body: data,
+  });
+}
+
+export async function listRecentlyAdded() {
+  return apiClient<UserSearchResult[]>("/api/v1/auth/users/recent");
+}
+
 export async function archiveProject(id: string) {
   return apiClient<Project>(`/api/v1/projects/${id}`, {
     method: "DELETE",

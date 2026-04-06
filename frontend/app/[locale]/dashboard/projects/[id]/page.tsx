@@ -5,7 +5,7 @@
 
 import { use, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   FileText,
@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { getProject, listMembers } from "@/features/projects/api";
+import { getProject, listMembers, updateProject } from "@/features/projects/api";
+import { InlineEdit } from "@/components/ui/inline-edit";
 import { listDocuments } from "@/features/documents/api";
 import { listEstimations, getAggregated } from "@/features/estimation/api";
 import { MembersList } from "@/features/projects/components/members-list";
@@ -47,6 +48,7 @@ export default function ProjectDetailPage({
   const t = useTranslations("projects");
   const tCommon = useTranslations("common");
 
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   const {
@@ -56,6 +58,14 @@ export default function ProjectDetailPage({
   } = useQuery({
     queryKey: ["project", id],
     queryFn: () => getProject(id),
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: (name: string) => updateProject(id, { name }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["project", id], updated);
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
   });
 
   if (isLoading) {
@@ -108,16 +118,19 @@ export default function ProjectDetailPage({
     <div>
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/dashboard">
+        <Link href="/dashboard/projects">
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
             <span className="sr-only">{tCommon("back")}</span>
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {project.name}
-          </h1>
+          <InlineEdit
+            value={project.name}
+            onSave={(name) => renameMutation.mutate(name)}
+            className="text-2xl font-bold tracking-tight"
+            inputClassName="text-2xl font-bold h-10"
+          />
           <div className="flex items-center gap-2 mt-1">
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[project.status] ?? STATUS_COLORS.active}`}

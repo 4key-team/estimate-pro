@@ -39,6 +39,9 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 			r.Patch("/profile", h.UpdateProfile)
 			r.Post("/avatar", h.UploadAvatar)
 			r.Get("/avatar/{userId}", h.GetAvatar)
+			r.Get("/users/search", h.SearchUsers)
+			r.Get("/users/colleagues", h.ListColleagues)
+			r.Get("/users/recent", h.ListRecentlyAdded)
 		})
 	})
 }
@@ -50,20 +53,24 @@ type fullAuthResponse struct {
 }
 
 type userDTO struct {
-	ID              string `json:"id"`
-	Email           string `json:"email"`
-	Name            string `json:"name"`
-	AvatarURL       string `json:"avatar_url,omitempty"`
-	PreferredLocale string `json:"preferred_locale"`
+	ID                string `json:"id"`
+	Email             string `json:"email"`
+	Name              string `json:"name"`
+	AvatarURL         string `json:"avatar_url,omitempty"`
+	PreferredLocale   string `json:"preferred_locale"`
+	TelegramChatID    string `json:"telegram_chat_id,omitempty"`
+	NotificationEmail string `json:"notification_email,omitempty"`
 }
 
 func toUserDTO(u *domain.User) userDTO {
 	return userDTO{
-		ID:              u.ID,
-		Email:           u.Email,
-		Name:            u.Name,
-		AvatarURL:       u.AvatarURL,
-		PreferredLocale: u.PreferredLocale,
+		ID:                u.ID,
+		Email:             u.Email,
+		Name:              u.Name,
+		AvatarURL:         u.AvatarURL,
+		PreferredLocale:   u.PreferredLocale,
+		TelegramChatID:    u.TelegramChatID,
+		NotificationEmail: u.NotificationEmail,
 	}
 }
 
@@ -182,7 +189,9 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProfileRequest struct {
-	Name string `json:"name"`
+	Name              string  `json:"name"`
+	TelegramChatID    *string `json:"telegram_chat_id,omitempty"`
+	NotificationEmail *string `json:"notification_email,omitempty"`
 }
 
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
@@ -198,10 +207,17 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.uc.UpdateProfile(r.Context(), usecase.UpdateProfileInput{
+	input := usecase.UpdateProfileInput{
 		UserID: userID,
 		Name:   req.Name,
-	})
+	}
+	if req.TelegramChatID != nil {
+		input.TelegramChatID = req.TelegramChatID
+	}
+	if req.NotificationEmail != nil {
+		input.NotificationEmail = req.NotificationEmail
+	}
+	user, err := h.uc.UpdateProfile(r.Context(), input)
 	if err != nil {
 		sharedErrors.InternalError(w, "failed to update profile")
 		return
@@ -248,6 +264,69 @@ func (h *Handler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, http.StatusOK, toUserDTO(user))
+}
+
+func (h *Handler) SearchUsers(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+
+	q := r.URL.Query().Get("q")
+	if len(q) < 2 {
+		sharedErrors.BadRequest(w, "query must be at least 2 characters")
+		return
+	}
+
+	results, err := h.uc.SearchUsers(r.Context(), q, userID, 10)
+	if err != nil {
+		sharedErrors.InternalError(w, "search failed")
+		return
+	}
+
+	if results == nil {
+		results = make([]*domain.UserSearchResult, 0)
+	}
+	response.WriteJSON(w, http.StatusOK, results)
+}
+
+func (h *Handler) ListColleagues(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+
+	results, err := h.uc.ListColleagues(r.Context(), userID, 20)
+	if err != nil {
+		sharedErrors.InternalError(w, "failed to list colleagues")
+		return
+	}
+
+	if results == nil {
+		results = make([]*domain.UserSearchResult, 0)
+	}
+	response.WriteJSON(w, http.StatusOK, results)
+}
+
+func (h *Handler) ListRecentlyAdded(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+
+	results, err := h.uc.ListRecentlyAdded(r.Context(), userID, 10)
+	if err != nil {
+		sharedErrors.InternalError(w, "failed to list recently added users")
+		return
+	}
+
+	if results == nil {
+		results = make([]*domain.UserSearchResult, 0)
+	}
+	response.WriteJSON(w, http.StatusOK, results)
 }
 
 func (h *Handler) GetAvatar(w http.ResponseWriter, r *http.Request) {
