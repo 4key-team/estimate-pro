@@ -47,6 +47,16 @@ func (m *mockWorkspaceRepo) ListByUser(_ context.Context, userID string) ([]*dom
 	return result, nil
 }
 
+func (m *mockWorkspaceRepo) Update(_ context.Context, ws *domain.Workspace) error {
+	for i, w := range m.workspaces {
+		if w.ID == ws.ID {
+			m.workspaces[i] = ws
+			return nil
+		}
+	}
+	return domain.ErrWorkspaceNotFound
+}
+
 // --- Helper to set user ID in context ---
 
 func requestWithUserID(r *http.Request, userID string) *http.Request {

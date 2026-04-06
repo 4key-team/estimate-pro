@@ -30,4 +30,5 @@ type WorkspaceRepository interface {
 	Create(ctx context.Context, workspace *Workspace) error
 	GetByID(ctx context.Context, id string) (*Workspace, error)
 	ListByUser(ctx context.Context, userID string) ([]*Workspace, error)
+	Update(ctx context.Context, workspace *Workspace) error
 }

@@ -38,6 +38,7 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Get("/", h.ListWorkspaces)
 			r.Post("/", h.CreateWorkspace)
+			r.Patch("/{id}", h.UpdateWorkspace)
 		})
 
 		r.Route("/projects", func(r chi.Router) {
@@ -108,6 +109,49 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, http.StatusCreated, workspace)
+}
+
+type updateWorkspaceRequest struct {
+	Name string `json:"name"`
+}
+
+func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
+	wsID := chi.URLParam(r, "id")
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+
+	var req updateWorkspaceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sharedErrors.BadRequest(w, "invalid request body")
+		return
+	}
+
+	if req.Name == "" {
+		sharedErrors.BadRequest(w, "name is required")
+		return
+	}
+
+	ws, err := h.workspaceRepo.GetByID(r.Context(), wsID)
+	if err != nil {
+		sharedErrors.NotFound(w, "workspace not found")
+		return
+	}
+
+	if ws.OwnerID != userID {
+		sharedErrors.Forbidden(w, "only workspace owner can rename")
+		return
+	}
+
+	ws.Name = req.Name
+	if err := h.workspaceRepo.Update(r.Context(), ws); err != nil {
+		sharedErrors.InternalError(w, "failed to update workspace")
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, ws)
 }
 
 type createProjectRequest struct {
