@@ -231,6 +231,14 @@ func (uc *AuthUsecase) ListColleagues(ctx context.Context, userID string, limit 
 	return results, nil
 }
 
+func (uc *AuthUsecase) ListRecentlyAdded(ctx context.Context, userID string, limit int) ([]*domain.UserSearchResult, error) {
+	results, err := uc.userRepo.ListRecentlyAdded(ctx, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("auth.ListRecentlyAdded: %w", err)
+	}
+	return results, nil
+}
+
 type OAuthLoginInput struct {
 	Email     string
 	Name      string

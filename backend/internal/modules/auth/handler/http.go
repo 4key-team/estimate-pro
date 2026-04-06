@@ -41,6 +41,7 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service) {
 			r.Get("/avatar/{userId}", h.GetAvatar)
 			r.Get("/users/search", h.SearchUsers)
 			r.Get("/users/colleagues", h.ListColleagues)
+			r.Get("/users/recent", h.ListRecentlyAdded)
 		})
 	})
 }
@@ -287,6 +288,25 @@ func (h *Handler) ListColleagues(w http.ResponseWriter, r *http.Request) {
 	results, err := h.uc.ListColleagues(r.Context(), userID, 20)
 	if err != nil {
 		sharedErrors.InternalError(w, "failed to list colleagues")
+		return
+	}
+
+	if results == nil {
+		results = make([]*domain.UserSearchResult, 0)
+	}
+	response.WriteJSON(w, http.StatusOK, results)
+}
+
+func (h *Handler) ListRecentlyAdded(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		sharedErrors.Unauthorized(w, "missing user context")
+		return
+	}
+
+	results, err := h.uc.ListRecentlyAdded(r.Context(), userID, 10)
+	if err != nil {
+		sharedErrors.InternalError(w, "failed to list recently added users")
 		return
 	}
 

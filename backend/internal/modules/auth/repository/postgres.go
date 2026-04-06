@@ -119,3 +119,30 @@ func (r *PostgresUserRepository) ListColleagues(ctx context.Context, userID stri
 	}
 	return results, nil
 }
+
+func (r *PostgresUserRepository) ListRecentlyAdded(ctx context.Context, addedByUserID string, limit int) ([]*domain.UserSearchResult, error) {
+	sql := `SELECT DISTINCT ON (u.id) u.id, u.email, u.name, COALESCE(u.avatar_url, '')
+		FROM users u
+		INNER JOIN project_members pm ON u.id = pm.user_id
+		WHERE pm.added_by = $1 AND u.id != $1
+		ORDER BY u.id, pm.added_at DESC
+		LIMIT $2`
+	rows, err := r.pool.Query(ctx, sql, addedByUserID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Repository.ListRecentlyAdded: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*domain.UserSearchResult
+	for rows.Next() {
+		u := &domain.UserSearchResult{}
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL); err != nil {
+			return nil, fmt.Errorf("auth.Repository.ListRecentlyAdded scan: %w", err)
+		}
+		results = append(results, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("auth.Repository.ListRecentlyAdded iteration: %w", err)
+	}
+	return results, nil
+}
