@@ -155,8 +155,7 @@ func main() {
 
 	// Handlers
 	authH := authHandler.New(authUC)
-	userFinder := projectRepo.NewUserFinderAdapter(userRepo)
-	memberUC := projectUsecase.NewMemberUsecase(memberRepo, projectRepository, userFinder)
+	memberUC := projectUsecase.NewMemberUsecase(memberRepo, projectRepository, &userFinderAdapter{repo: userRepo})
 	projectH := projectHandler.New(projectUC, memberUC, workspaceRepo)
 	documentH := documentHandler.New(documentUC)
 	estimationH := estimationHandler.New(estimationUC, &memberRoleAdapter{memberRepo})
@@ -461,4 +460,18 @@ func (a *roleGetterAdapter) GetRole(ctx context.Context, projectID, userID strin
 		return "", err
 	}
 	return string(role), nil
+}
+
+// userFinderAdapter adapts auth UserRepository to project.domain.UserFinder.
+// Lives in main.go to avoid cross-module import between project and auth.
+type userFinderAdapter struct {
+	repo *authRepo.PostgresUserRepository
+}
+
+func (a *userFinderAdapter) FindByEmail(ctx context.Context, email string) (string, error) {
+	user, err := a.repo.GetByEmail(ctx, email)
+	if err != nil {
+		return "", fmt.Errorf("userFinder.FindByEmail: %w", err)
+	}
+	return user.ID, nil
 }

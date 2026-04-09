@@ -90,8 +90,8 @@ func (h *Handler) CreateEstimation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Observer cannot create estimations
-	if h.roleChecker != nil && !h.roleChecker.CanEstimate(r.Context(), projectID, userID) {
+	// Observer cannot create estimations.
+	if !h.roleChecker.CanEstimate(r.Context(), projectID, userID) {
 		sharedErrors.Forbidden(w, "observers cannot create estimations")
 		return
 	}
