@@ -19,7 +19,7 @@ var knownHeaders = map[string]bool{
 func Parse(input string) ([]*domain.EstimationItem, error) {
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return nil, fmt.Errorf("parser.Parse: empty input")
+		return nil, fmt.Errorf("parser.Parse: %w", domain.ErrEmptyInput)
 	}
 
 	lines := strings.Split(input, "\n")
@@ -84,7 +84,7 @@ func Parse(input string) ([]*domain.EstimationItem, error) {
 	}
 
 	if len(items) == 0 {
-		return nil, fmt.Errorf("parser.Parse: no valid items found")
+		return nil, fmt.Errorf("parser.Parse: %w", domain.ErrNoValidItems)
 	}
 
 	return items, nil

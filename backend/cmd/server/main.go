@@ -155,8 +155,7 @@ func main() {
 
 	// Handlers
 	authH := authHandler.New(authUC)
-	userFinder := projectRepo.NewUserFinderAdapter(userRepo)
-	memberUC := projectUsecase.NewMemberUsecase(memberRepo, projectRepository, userFinder)
+	memberUC := projectUsecase.NewMemberUsecase(memberRepo, projectRepository, &userFinderAdapter{repo: userRepo})
 	projectH := projectHandler.New(projectUC, memberUC, workspaceRepo)
 	documentH := documentHandler.New(documentUC)
 	estimationH := estimationHandler.New(estimationUC, &memberRoleAdapter{memberRepo})
@@ -166,7 +165,8 @@ func main() {
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
 	r.Use(middleware.Logger(logger))
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(cfg.AllowedOrigins...))
+	r.Use(middleware.MaxBodySize(50 << 20)) // 50MB max request body
 	r.Use(chimw.Recoverer)
 
 	// Health check
@@ -227,12 +227,14 @@ func main() {
 	botH := botHandler.New(botUC, cfg.TelegramBot.WebhookSecret)
 
 	// Module routes
-	authH.Register(r, jwtService)
+	authRateLimiter := middleware.RateLimit(10, time.Minute) // 10 requests per minute per IP
+	authH.Register(r, jwtService, authRateLimiter)
 	oauthH.Register(r)
 	wsH.Register(r)
-	projectH.Register(r, jwtService)
-	documentH.Register(r, jwtService)
-	estimationH.Register(r, jwtService)
+	membershipMW := middleware.RequireProjectMember(&roleGetterAdapter{memberRepo})
+	projectH.Register(r, jwtService, membershipMW)
+	documentH.Register(r, jwtService, membershipMW)
+	estimationH.Register(r, jwtService, membershipMW)
 	notifyH.Register(r, jwtService)
 	botH.Register(r)
 
@@ -290,7 +292,7 @@ type memberRoleAdapter struct {
 func (a *memberRoleAdapter) CanEstimate(ctx context.Context, projectID, userID string) bool {
 	role, err := a.repo.GetRole(ctx, projectID, userID)
 	if err != nil {
-		return true // if role unknown, allow (fail open — permission checked elsewhere)
+		return false // fail-closed: deny on error
 	}
 	return role.CanEstimate()
 }
@@ -443,4 +445,33 @@ func (a *botDocumentAdapter) Upload(ctx context.Context, projectID, title, fileN
 		UserID:    userID,
 	})
 	return err
+}
+
+// roleGetterAdapter adapts MemberRepository.GetRole to middleware.RoleGetter interface (returns string).
+type roleGetterAdapter struct {
+	repo interface {
+		GetRole(ctx context.Context, projectID, userID string) (projectDomain.Role, error)
+	}
+}
+
+func (a *roleGetterAdapter) GetRole(ctx context.Context, projectID, userID string) (string, error) {
+	role, err := a.repo.GetRole(ctx, projectID, userID)
+	if err != nil {
+		return "", err
+	}
+	return string(role), nil
+}
+
+// userFinderAdapter adapts auth UserRepository to project.domain.UserFinder.
+// Lives in main.go to avoid cross-module import between project and auth.
+type userFinderAdapter struct {
+	repo *authRepo.PostgresUserRepository
+}
+
+func (a *userFinderAdapter) FindByEmail(ctx context.Context, email string) (string, error) {
+	user, err := a.repo.GetByEmail(ctx, email)
+	if err != nil {
+		return "", fmt.Errorf("userFinder.FindByEmail: %w", err)
+	}
+	return user.ID, nil
 }

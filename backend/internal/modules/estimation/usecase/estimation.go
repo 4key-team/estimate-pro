@@ -95,7 +95,7 @@ func (uc *EstimationUsecase) Submit(ctx context.Context, id, userID string) erro
 	}
 
 	if est.SubmittedBy != userID {
-		return fmt.Errorf("estimation.Submit: only the author can submit")
+		return fmt.Errorf("estimation.Submit: %w", domain.ErrNotAuthor)
 	}
 
 	if est.IsSubmitted() {
@@ -116,7 +116,7 @@ func (uc *EstimationUsecase) Delete(ctx context.Context, id, userID string) erro
 	}
 
 	if est.SubmittedBy != userID {
-		return fmt.Errorf("estimation.Delete: only the author can delete")
+		return fmt.Errorf("estimation.Delete: %w", domain.ErrNotAuthor)
 	}
 
 	if est.IsSubmitted() {
@@ -163,7 +163,10 @@ func validateItem(item *domain.EstimationItem) error {
 		return domain.ErrInvalidHours
 	}
 	if item.TaskName == "" {
-		return fmt.Errorf("task name is required")
+		return domain.ErrTaskNameRequired
+	}
+	if len(item.TaskName) > 255 {
+		return domain.ErrTaskNameTooLong
 	}
 	return nil
 }
