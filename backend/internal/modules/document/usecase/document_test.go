@@ -52,6 +52,11 @@ type mockVersionRepo struct {
 	getByIDFn             func(ctx context.Context, id string) (*domain.DocumentVersion, error)
 	listByDocumentFn      func(ctx context.Context, documentID string) ([]*domain.DocumentVersion, error)
 	getLatestByDocumentFn func(ctx context.Context, documentID string) (*domain.DocumentVersion, error)
+	updateFlagsFn         func(ctx context.Context, id string, isSigned, isFinal bool) error
+	clearFinalFn          func(ctx context.Context, documentID string) error
+	clearFinalByProjectFn func(ctx context.Context, projectID string) error
+	setTagsFn             func(ctx context.Context, versionID string, tags []string) error
+	getTagsFn             func(ctx context.Context, versionID string) ([]string, error)
 }
 
 func (m *mockVersionRepo) Create(ctx context.Context, version *domain.DocumentVersion) error {
@@ -82,11 +87,40 @@ func (m *mockVersionRepo) GetLatestByDocument(ctx context.Context, documentID st
 	return nil, nil
 }
 
-func (m *mockVersionRepo) UpdateFlags(_ context.Context, _ string, _, _ bool) error   { return nil }
-func (m *mockVersionRepo) ClearFinal(_ context.Context, _ string) error               { return nil }
-func (m *mockVersionRepo) ClearFinalByProject(_ context.Context, _ string) error      { return nil }
-func (m *mockVersionRepo) SetTags(_ context.Context, _ string, _ []string) error      { return nil }
-func (m *mockVersionRepo) GetTags(_ context.Context, _ string) ([]string, error)      { return nil, nil }
+func (m *mockVersionRepo) UpdateFlags(ctx context.Context, id string, isSigned, isFinal bool) error {
+	if m.updateFlagsFn != nil {
+		return m.updateFlagsFn(ctx, id, isSigned, isFinal)
+	}
+	return nil
+}
+
+func (m *mockVersionRepo) ClearFinal(ctx context.Context, documentID string) error {
+	if m.clearFinalFn != nil {
+		return m.clearFinalFn(ctx, documentID)
+	}
+	return nil
+}
+
+func (m *mockVersionRepo) ClearFinalByProject(ctx context.Context, projectID string) error {
+	if m.clearFinalByProjectFn != nil {
+		return m.clearFinalByProjectFn(ctx, projectID)
+	}
+	return nil
+}
+
+func (m *mockVersionRepo) SetTags(ctx context.Context, versionID string, tags []string) error {
+	if m.setTagsFn != nil {
+		return m.setTagsFn(ctx, versionID, tags)
+	}
+	return nil
+}
+
+func (m *mockVersionRepo) GetTags(ctx context.Context, versionID string) ([]string, error) {
+	if m.getTagsFn != nil {
+		return m.getTagsFn(ctx, versionID)
+	}
+	return nil, nil
+}
 
 type mockFileStorage struct {
 	uploadFn   func(ctx context.Context, key string, data io.Reader, size int64, contentType string) error
@@ -489,5 +523,425 @@ func TestDelete_Success(t *testing.T) {
 				t.Error("docRepo.Delete was not called")
 			}
 		})
+	}
+}
+
+// --- Upload error branches ---
+
+func TestUpload_DocRepoCreateError(t *testing.T) {
+	wantErr := errors.New("db down")
+	docRepo := &mockDocumentRepo{
+		createFn: func(_ context.Context, _ *domain.Document) error { return wantErr },
+	}
+	uc := New(docRepo, &mockVersionRepo{}, &mockFileStorage{})
+	_, _, err := uc.Upload(t.Context(), UploadInput{
+		ProjectID: "proj-1", Title: "Doc", FileName: "f.pdf",
+		FileSize: 100, FileType: domain.FileTypePDF,
+		Content: strings.NewReader("data"), UserID: "u-1",
+	})
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestUpload_StorageError(t *testing.T) {
+	wantErr := errors.New("s3 unavailable")
+	storage := &mockFileStorage{
+		uploadFn: func(_ context.Context, _ string, _ io.Reader, _ int64, _ string) error { return wantErr },
+	}
+	uc := New(&mockDocumentRepo{}, &mockVersionRepo{}, storage)
+	_, _, err := uc.Upload(t.Context(), UploadInput{
+		ProjectID: "proj-1", Title: "Doc", FileName: "f.pdf",
+		FileSize: 100, FileType: domain.FileTypePDF,
+		Content: strings.NewReader("data"), UserID: "u-1",
+	})
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestUpload_VersionRepoCreateError(t *testing.T) {
+	wantErr := errors.New("version insert failed")
+	versionRepo := &mockVersionRepo{
+		createFn: func(_ context.Context, _ *domain.DocumentVersion) error { return wantErr },
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	_, _, err := uc.Upload(t.Context(), UploadInput{
+		ProjectID: "proj-1", Title: "Doc", FileName: "f.pdf",
+		FileSize: 100, FileType: domain.FileTypePDF,
+		Content: strings.NewReader("data"), UserID: "u-1",
+	})
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+// --- List error ---
+
+func TestList_Error(t *testing.T) {
+	wantErr := errors.New("db error")
+	docRepo := &mockDocumentRepo{
+		listByProjectFn: func(_ context.Context, _ string) ([]*domain.Document, error) {
+			return nil, wantErr
+		},
+	}
+	uc := New(docRepo, &mockVersionRepo{}, &mockFileStorage{})
+	_, err := uc.List(t.Context(), "proj-1")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+// --- Get latest version error ---
+
+func TestGet_LatestVersionError(t *testing.T) {
+	wantErr := errors.New("version error")
+	docRepo := &mockDocumentRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.Document, error) {
+			return &domain.Document{ID: "doc-1"}, nil
+		},
+	}
+	versionRepo := &mockVersionRepo{
+		getLatestByDocumentFn: func(_ context.Context, _ string) (*domain.DocumentVersion, error) {
+			return nil, wantErr
+		},
+	}
+	uc := New(docRepo, versionRepo, &mockFileStorage{})
+	_, err := uc.Get(t.Context(), "doc-1")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+// --- GetVersions ---
+
+func TestGetVersions_Success(t *testing.T) {
+	versions := []*domain.DocumentVersion{
+		{ID: "v1", DocumentID: "doc-1", VersionNumber: 1},
+		{ID: "v2", DocumentID: "doc-1", VersionNumber: 2},
+	}
+	versionRepo := &mockVersionRepo{
+		listByDocumentFn: func(_ context.Context, docID string) ([]*domain.DocumentVersion, error) {
+			if docID != "doc-1" {
+				t.Errorf("docID = %q, want %q", docID, "doc-1")
+			}
+			return versions, nil
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	result, err := uc.GetVersions(t.Context(), "doc-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 2 {
+		t.Errorf("len(result) = %d, want 2", len(result))
+	}
+}
+
+func TestGetVersions_Error(t *testing.T) {
+	wantErr := errors.New("db error")
+	versionRepo := &mockVersionRepo{
+		listByDocumentFn: func(_ context.Context, _ string) ([]*domain.DocumentVersion, error) {
+			return nil, wantErr
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	_, err := uc.GetVersions(t.Context(), "doc-1")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+// --- Download ---
+
+func TestDownload_Success(t *testing.T) {
+	versionRepo := &mockVersionRepo{
+		getLatestByDocumentFn: func(_ context.Context, _ string) (*domain.DocumentVersion, error) {
+			return &domain.DocumentVersion{
+				ID: "v1", DocumentID: "doc-1", FileKey: "documents/proj-1/doc-1/v1/file.pdf",
+			}, nil
+		},
+	}
+	storage := &mockFileStorage{
+		downloadFn: func(_ context.Context, key string) (io.ReadCloser, error) {
+			if key != "documents/proj-1/doc-1/v1/file.pdf" {
+				t.Errorf("key = %q, want %q", key, "documents/proj-1/doc-1/v1/file.pdf")
+			}
+			return io.NopCloser(strings.NewReader("pdf content")), nil
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, storage)
+	reader, fileKey, err := uc.Download(t.Context(), "doc-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reader == nil {
+		t.Fatal("expected reader, got nil")
+	}
+	defer reader.Close()
+	if fileKey != "documents/proj-1/doc-1/v1/file.pdf" {
+		t.Errorf("fileKey = %q, want %q", fileKey, "documents/proj-1/doc-1/v1/file.pdf")
+	}
+}
+
+func TestDownload_VersionNotFound(t *testing.T) {
+	versionRepo := &mockVersionRepo{
+		getLatestByDocumentFn: func(_ context.Context, _ string) (*domain.DocumentVersion, error) {
+			return nil, domain.ErrVersionNotFound
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	_, _, err := uc.Download(t.Context(), "doc-nonexistent")
+	if !errors.Is(err, domain.ErrVersionNotFound) {
+		t.Errorf("error = %v, want %v", err, domain.ErrVersionNotFound)
+	}
+}
+
+func TestDownload_StorageError(t *testing.T) {
+	wantErr := errors.New("s3 down")
+	versionRepo := &mockVersionRepo{
+		getLatestByDocumentFn: func(_ context.Context, _ string) (*domain.DocumentVersion, error) {
+			return &domain.DocumentVersion{ID: "v1", FileKey: "key"}, nil
+		},
+	}
+	storage := &mockFileStorage{
+		downloadFn: func(_ context.Context, _ string) (io.ReadCloser, error) {
+			return nil, wantErr
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, storage)
+	_, _, err := uc.Download(t.Context(), "doc-1")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+// --- Delete error branches ---
+
+func TestDelete_NotFound(t *testing.T) {
+	docRepo := &mockDocumentRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.Document, error) {
+			return nil, domain.ErrDocumentNotFound
+		},
+	}
+	uc := New(docRepo, &mockVersionRepo{}, &mockFileStorage{})
+	err := uc.Delete(t.Context(), "doc-x", "user-1")
+	if !errors.Is(err, domain.ErrDocumentNotFound) {
+		t.Errorf("error = %v, want %v", err, domain.ErrDocumentNotFound)
+	}
+}
+
+func TestDelete_WrongUser(t *testing.T) {
+	docRepo := &mockDocumentRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.Document, error) {
+			return &domain.Document{ID: "doc-1", UploadedBy: "user-1"}, nil
+		},
+	}
+	uc := New(docRepo, &mockVersionRepo{}, &mockFileStorage{})
+	err := uc.Delete(t.Context(), "doc-1", "user-other")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestDelete_ListVersionsError(t *testing.T) {
+	wantErr := errors.New("db error")
+	docRepo := &mockDocumentRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.Document, error) {
+			return &domain.Document{ID: "doc-1", UploadedBy: "user-1"}, nil
+		},
+	}
+	versionRepo := &mockVersionRepo{
+		listByDocumentFn: func(_ context.Context, _ string) ([]*domain.DocumentVersion, error) {
+			return nil, wantErr
+		},
+	}
+	uc := New(docRepo, versionRepo, &mockFileStorage{})
+	err := uc.Delete(t.Context(), "doc-1", "user-1")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestDelete_StorageDeleteError(t *testing.T) {
+	wantErr := errors.New("s3 delete failed")
+	docRepo := &mockDocumentRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.Document, error) {
+			return &domain.Document{ID: "doc-1", UploadedBy: "user-1"}, nil
+		},
+	}
+	versionRepo := &mockVersionRepo{
+		listByDocumentFn: func(_ context.Context, _ string) ([]*domain.DocumentVersion, error) {
+			return []*domain.DocumentVersion{{ID: "v1", FileKey: "k1"}}, nil
+		},
+	}
+	storage := &mockFileStorage{
+		deleteFn: func(_ context.Context, _ string) error { return wantErr },
+	}
+	uc := New(docRepo, versionRepo, storage)
+	err := uc.Delete(t.Context(), "doc-1", "user-1")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestDelete_DocRepoDeleteError(t *testing.T) {
+	wantErr := errors.New("db delete failed")
+	docRepo := &mockDocumentRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.Document, error) {
+			return &domain.Document{ID: "doc-1", UploadedBy: "user-1"}, nil
+		},
+		deleteFn: func(_ context.Context, _ string) error { return wantErr },
+	}
+	versionRepo := &mockVersionRepo{
+		listByDocumentFn: func(_ context.Context, _ string) ([]*domain.DocumentVersion, error) {
+			return []*domain.DocumentVersion{}, nil
+		},
+	}
+	uc := New(docRepo, versionRepo, &mockFileStorage{})
+	err := uc.Delete(t.Context(), "doc-1", "user-1")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+// --- UpdateVersionFlags ---
+
+func TestUpdateVersionFlags_WithFinal(t *testing.T) {
+	var clearedProject string
+	var updatedID string
+	var updatedSigned, updatedFinal bool
+
+	versionRepo := &mockVersionRepo{
+		clearFinalByProjectFn: func(_ context.Context, projectID string) error {
+			clearedProject = projectID
+			return nil
+		},
+		updateFlagsFn: func(_ context.Context, id string, isSigned, isFinal bool) error {
+			updatedID = id
+			updatedSigned = isSigned
+			updatedFinal = isFinal
+			return nil
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	err := uc.UpdateVersionFlags(t.Context(), "proj-1", "ver-1", true, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if clearedProject != "proj-1" {
+		t.Errorf("clearedProject = %q, want %q", clearedProject, "proj-1")
+	}
+	if updatedID != "ver-1" {
+		t.Errorf("updatedID = %q, want %q", updatedID, "ver-1")
+	}
+	if !updatedSigned {
+		t.Error("expected isSigned=true")
+	}
+	if !updatedFinal {
+		t.Error("expected isFinal=true")
+	}
+}
+
+func TestUpdateVersionFlags_WithoutFinal(t *testing.T) {
+	var clearCalled bool
+	versionRepo := &mockVersionRepo{
+		clearFinalByProjectFn: func(_ context.Context, _ string) error {
+			clearCalled = true
+			return nil
+		},
+		updateFlagsFn: func(_ context.Context, _ string, _, _ bool) error {
+			return nil
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	err := uc.UpdateVersionFlags(t.Context(), "proj-1", "ver-1", true, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if clearCalled {
+		t.Error("ClearFinalByProject should not be called when isFinal=false")
+	}
+}
+
+func TestUpdateVersionFlags_ClearFinalError(t *testing.T) {
+	wantErr := errors.New("clear failed")
+	versionRepo := &mockVersionRepo{
+		clearFinalByProjectFn: func(_ context.Context, _ string) error { return wantErr },
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	err := uc.UpdateVersionFlags(t.Context(), "proj-1", "ver-1", false, true)
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestUpdateVersionFlags_UpdateFlagsError(t *testing.T) {
+	wantErr := errors.New("update failed")
+	versionRepo := &mockVersionRepo{
+		updateFlagsFn: func(_ context.Context, _ string, _, _ bool) error { return wantErr },
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	err := uc.UpdateVersionFlags(t.Context(), "proj-1", "ver-1", true, false)
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+// --- SetVersionTags ---
+
+func TestSetVersionTags_Success(t *testing.T) {
+	var savedTags []string
+	versionRepo := &mockVersionRepo{
+		setTagsFn: func(_ context.Context, _ string, tags []string) error {
+			savedTags = tags
+			return nil
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	err := uc.SetVersionTags(t.Context(), "ver-1", []string{"срочно", "черновик"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(savedTags) != 2 {
+		t.Errorf("len(savedTags) = %d, want 2", len(savedTags))
+	}
+}
+
+func TestSetVersionTags_MaxExceeded(t *testing.T) {
+	uc := New(&mockDocumentRepo{}, &mockVersionRepo{}, &mockFileStorage{})
+	err := uc.SetVersionTags(t.Context(), "ver-1", []string{"a", "b", "c", "d"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestSetVersionTags_RepoError(t *testing.T) {
+	wantErr := errors.New("db error")
+	versionRepo := &mockVersionRepo{
+		setTagsFn: func(_ context.Context, _ string, _ []string) error { return wantErr },
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	err := uc.SetVersionTags(t.Context(), "ver-1", []string{"tag1"})
+	if !errors.Is(err, wantErr) {
+		t.Errorf("error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestSetVersionTags_Empty(t *testing.T) {
+	var savedTags []string
+	versionRepo := &mockVersionRepo{
+		setTagsFn: func(_ context.Context, _ string, tags []string) error {
+			savedTags = tags
+			return nil
+		},
+	}
+	uc := New(&mockDocumentRepo{}, versionRepo, &mockFileStorage{})
+	err := uc.SetVersionTags(t.Context(), "ver-1", []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(savedTags) != 0 {
+		t.Errorf("len(savedTags) = %d, want 0", len(savedTags))
 	}
 }
