@@ -5,6 +5,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -218,7 +219,7 @@ func (e *IntentExecutor) forgotPassword(ctx context.Context, intent *domain.Inte
 	}
 	link, err := e.passwords.RequestReset(ctx, userID)
 	if err != nil {
-		if strings.Contains(err.Error(), "no password") {
+		if errors.Is(err, domain.ErrNoPassword) {
 			return "Твой аккаунт использует вход через Google/GitHub. Пароль сбрасывать не нужно! 😊", nil, nil
 		}
 		return "", nil, fmt.Errorf("forgotPassword: %w", err)
@@ -236,6 +237,7 @@ func (e *IntentExecutor) help() (string, [][]domain.InlineKeyboardButton, error)
 • *удали участника [имя] из [проект]* — удалить участника
 • *участники [проект]* — список участников
 • *оценка [проект]* — агрегированная оценка
+• *забыл пароль* — сброс пароля
 • *помощь* — эта справка
 
 Вы также можете отправлять сообщения в свободной форме — бот постарается понять ваш запрос.`

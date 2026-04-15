@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -24,6 +24,14 @@ import { LocaleToggle } from "@/components/ui/locale-toggle";
 import { resetPassword } from "@/features/auth/api";
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
   const router = useRouter();

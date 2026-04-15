@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,6 +28,7 @@ import (
 	"github.com/VDV001/estimate-pro/backend/internal/shared/middleware"
 	"github.com/VDV001/estimate-pro/backend/pkg/jwt"
 
+	authDomain "github.com/VDV001/estimate-pro/backend/internal/modules/auth/domain"
 	authHandler "github.com/VDV001/estimate-pro/backend/internal/modules/auth/handler"
 	authRepo "github.com/VDV001/estimate-pro/backend/internal/modules/auth/repository"
 	authUsecase "github.com/VDV001/estimate-pro/backend/internal/modules/auth/usecase"
@@ -529,5 +531,13 @@ type botPasswordResetAdapter struct {
 }
 
 func (a *botPasswordResetAdapter) RequestReset(ctx context.Context, userID string) (string, error) {
-	return a.authUC.ForgotPasswordByUserID(ctx, userID)
+	link, err := a.authUC.ForgotPasswordByUserID(ctx, userID)
+	if err != nil {
+		// Translate auth domain error to bot domain error (no cross-module import).
+		if errors.Is(err, authDomain.ErrNoPassword) {
+			return "", botDomain.ErrNoPassword
+		}
+		return "", err
+	}
+	return link, nil
 }

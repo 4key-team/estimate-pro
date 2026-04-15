@@ -29,7 +29,7 @@ type Handler struct {
 func New(uc *usecase.AuthUsecase) *Handler {
 	return &Handler{
 		uc:      uc,
-		resetRL: newEmailRateLimiter(3, time.Hour),
+		resetRL: newEmailRateLimiter(3, 10*time.Minute),
 	}
 }
 
@@ -445,11 +445,27 @@ type emailRateEntry struct {
 }
 
 func newEmailRateLimiter(limit int, window time.Duration) *emailRateLimiter {
-	return &emailRateLimiter{
+	rl := &emailRateLimiter{
 		entries: make(map[string]*emailRateEntry),
 		limit:   limit,
 		window:  window,
 	}
+	// Cleanup expired entries periodically to prevent memory leak.
+	go func() {
+		ticker := time.NewTicker(window)
+		defer ticker.Stop()
+		for range ticker.C {
+			rl.mu.Lock()
+			now := time.Now()
+			for email, entry := range rl.entries {
+				if now.After(entry.resetAt) {
+					delete(rl.entries, email)
+				}
+			}
+			rl.mu.Unlock()
+		}
+	}()
+	return rl
 }
 
 func (rl *emailRateLimiter) Allow(email string) bool {

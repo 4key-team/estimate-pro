@@ -6,8 +6,12 @@ package domain
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
+
+// ErrNoPassword indicates the user has no password (OAuth account).
+var ErrNoPassword = errors.New("no password to reset")
 
 // IntentType represents the type of user intent parsed from a message.
 type IntentType string
