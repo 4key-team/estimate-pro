@@ -54,7 +54,7 @@ func TestPostgresUserRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("Search", func(t *testing.T) {
-		results, err := repo.Search(ctx, "Updated", "other", 10)
+		results, err := repo.Search(ctx, "Updated", "aaaaaaaa-0000-0000-0000-999999999999", 10)
 		if err != nil { t.Fatalf("Search: %v", err) }
 		if len(results) != 1 { t.Errorf("len = %d, want 1", len(results)) }
 	})
@@ -116,5 +116,42 @@ func TestResetTokenStore_Integration(t *testing.T) {
 		store.Consume(ctx, "rt2")
 		_, err := store.Consume(ctx, "rt2")
 		if err == nil { t.Error("expected error") }
+	})
+}
+
+func TestMembershipChecker_Integration(t *testing.T) {
+	pool := testutil.SetupPostgres(t)
+	ctx := t.Context()
+	now := time.Now().Truncate(time.Microsecond)
+
+	userA := "aaaaaaaa-ac00-0000-0000-000000000001"
+	userB := "aaaaaaaa-ac00-0000-0000-000000000002"
+	pool.Exec(ctx, `INSERT INTO users (id,email,password_hash,name,preferred_locale,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		userA, "a@test.com", "$2a$10$x", "A", "ru", now, now)
+	pool.Exec(ctx, `INSERT INTO users (id,email,password_hash,name,preferred_locale,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		userB, "b@test.com", "$2a$10$x", "B", "ru", now, now)
+
+	wsID := "aaaaaaaa-ac01-0000-0000-000000000001"
+	pool.Exec(ctx, `INSERT INTO workspaces (id,name,owner_id,created_at) VALUES ($1,$2,$3,$4)`, wsID, "WS", userA, now)
+	pool.Exec(ctx, `INSERT INTO workspace_members (workspace_id,user_id,role,invited_at,joined_at) VALUES ($1,$2,$3,$4,$4)`, wsID, userA, "admin", now)
+
+	projID := "aaaaaaaa-ac02-0000-0000-000000000001"
+	pool.Exec(ctx, `INSERT INTO projects (id,workspace_id,name,description,status,created_by,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		projID, wsID, "P", "", "active", userA, now, now)
+
+	checker := NewPostgresMembershipChecker(pool)
+
+	t.Run("NoSharedProject", func(t *testing.T) {
+		shared, err := checker.ShareProject(ctx, userA, userB)
+		if err != nil { t.Fatalf("ShareProject: %v", err) }
+		if shared { t.Error("expected false") }
+	})
+
+	t.Run("SharedProject", func(t *testing.T) {
+		pool.Exec(ctx, `INSERT INTO project_members (project_id,user_id,role,added_at) VALUES ($1,$2,$3,$4)`, projID, userA, "admin", now)
+		pool.Exec(ctx, `INSERT INTO project_members (project_id,user_id,role,added_at) VALUES ($1,$2,$3,$4)`, projID, userB, "developer", now)
+		shared, err := checker.ShareProject(ctx, userA, userB)
+		if err != nil { t.Fatalf("ShareProject: %v", err) }
+		if !shared { t.Error("expected true") }
 	})
 }

@@ -115,6 +115,16 @@ func runMigrations(t *testing.T, pool *pgxpool.Pool) {
 			t.Fatalf("testutil.runMigrations: exec %s: %v", entry.Name(), err)
 		}
 	}
+
+	// Columns not in migration files but used by code
+	extras := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512) DEFAULT ''`,
+	}
+	for _, ddl := range extras {
+		if _, err := pool.Exec(t.Context(), ddl); err != nil {
+			t.Fatalf("testutil.runMigrations: extra DDL: %v", err)
+		}
+	}
 }
 
 func indexOf(s, substr string) int {
