@@ -492,7 +492,9 @@ func (a *userFinderAdapter) FindByEmail(ctx context.Context, email string) (stri
 
 // resetNotifierAdapter delivers password-reset links via email and Telegram.
 type resetNotifierAdapter struct {
-	userRepo *authRepo.PostgresUserRepository
+	userRepo interface {
+		GetByID(ctx context.Context, id string) (*authDomain.User, error)
+	}
 	emailSender interface {
 		Send(ctx context.Context, userID, subject, body string) error
 	}
