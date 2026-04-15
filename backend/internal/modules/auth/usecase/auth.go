@@ -317,6 +317,10 @@ type ResetPasswordInput struct {
 
 // ResetPassword consumes a reset token and updates the user's password.
 func (uc *AuthUsecase) ResetPassword(ctx context.Context, input ResetPasswordInput) error {
+	if uc.resetTokenStore == nil {
+		return fmt.Errorf("auth.ResetPassword: reset not configured")
+	}
+
 	userID, err := uc.resetTokenStore.Consume(ctx, input.Token)
 	if err != nil {
 		return fmt.Errorf("auth.ResetPassword: %w", err)
