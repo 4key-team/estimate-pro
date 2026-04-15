@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -387,7 +388,9 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Always return 200 — never reveal email existence, even on internal error.
-	_, _ = h.uc.ForgotPassword(r.Context(), req.Email)
+	if _, err := h.uc.ForgotPassword(r.Context(), req.Email); err != nil {
+		slog.Warn("forgot-password internal error", "error", err)
+	}
 
 	response.WriteJSON(w, http.StatusOK, map[string]string{
 		"message": "If an account exists, a reset link has been sent",
