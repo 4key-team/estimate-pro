@@ -60,15 +60,9 @@ func (uc *AuthUsecase) Register(ctx context.Context, input RegisterInput) (*Auth
 		return nil, fmt.Errorf("auth.Register hash: %w", err)
 	}
 
-	now := time.Now()
-	user := &domain.User{
-		ID:              uuid.New().String(),
-		Email:           input.Email,
-		PasswordHash:    string(hash),
-		Name:            input.Name,
-		PreferredLocale: "ru",
-		CreatedAt:       now,
-		UpdatedAt:       now,
+	user, err := domain.NewUser(input.Email, string(hash), input.Name, "")
+	if err != nil {
+		return nil, err
 	}
 
 	if err := uc.userRepo.Create(ctx, user); err != nil {
@@ -391,16 +385,9 @@ func (uc *AuthUsecase) OAuthLogin(ctx context.Context, input OAuthLoginInput) (*
 
 	if user == nil {
 		// Create new user (no password for OAuth users)
-		now := time.Now()
-		user = &domain.User{
-			ID:              uuid.New().String(),
-			Email:           input.Email,
-			PasswordHash:    "", // OAuth users have no password
-			Name:            input.Name,
-			AvatarURL:       input.AvatarURL,
-			PreferredLocale: "ru",
-			CreatedAt:       now,
-			UpdatedAt:       now,
+		user, err = domain.NewUser(input.Email, "", input.Name, input.AvatarURL)
+		if err != nil {
+			return nil, err
 		}
 
 		if err := uc.userRepo.Create(ctx, user); err != nil {
