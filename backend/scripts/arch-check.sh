@@ -16,7 +16,7 @@ report_fail() {
 # Entities with domain constructors — прямое создание литералом запрещено
 # вне domain/ и repository/ (repo reconstructs from DB rows). Расширять этот
 # список по мере добавления NewXxx-конструкторов в других модулях.
-entities_with_ctor='Workspace|Project|Member'
+entities_with_ctor='Workspace|Project|Member|Estimation|EstimationItem'
 
 # --- Rule 1: domain — чистый, без инфры ---
 echo "→ 1/5  domain/ не импортирует pgx/redis/chi/minio"
