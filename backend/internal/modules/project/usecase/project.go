@@ -6,9 +6,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/VDV001/estimate-pro/backend/internal/modules/project/domain"
 )
@@ -35,26 +32,18 @@ func (uc *ProjectUsecase) Create(ctx context.Context, input CreateProjectInput) 
 		return nil, fmt.Errorf("project.Create: %w", err)
 	}
 
-	now := time.Now()
-	project := &domain.Project{
-		ID:          uuid.New().String(),
-		WorkspaceID: input.WorkspaceID,
-		Name:        input.Name,
-		Description: input.Description,
-		Status:      domain.ProjectStatusActive,
-		CreatedBy:   input.UserID,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	project, err := domain.NewProject(input.WorkspaceID, input.Name, input.Description, input.UserID)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := uc.projectRepo.Create(ctx, project); err != nil {
 		return nil, fmt.Errorf("project.Create: %w", err)
 	}
 
-	member := &domain.Member{
-		ProjectID: project.ID,
-		UserID:    input.UserID,
-		Role:      domain.RoleAdmin,
+	member, err := domain.NewMember(project.ID, input.UserID, domain.RoleAdmin, "")
+	if err != nil {
+		return nil, fmt.Errorf("project.Create: %w", err)
 	}
 	if err := uc.memberRepo.Add(ctx, member); err != nil {
 		return nil, fmt.Errorf("project.Create add member: %w", err)
@@ -121,13 +110,9 @@ func (uc *ProjectUsecase) Update(ctx context.Context, input UpdateProjectInput) 
 		return nil, fmt.Errorf("project.Update: %w", err)
 	}
 
-	if input.Name != "" {
-		project.Name = input.Name
+	if err := project.UpdateDetails(input.Name, input.Description); err != nil {
+		return nil, err
 	}
-	if input.Description != "" {
-		project.Description = input.Description
-	}
-	project.UpdatedAt = time.Now()
 
 	if err := uc.projectRepo.Update(ctx, project); err != nil {
 		return nil, fmt.Errorf("project.Update: %w", err)
@@ -149,8 +134,7 @@ func (uc *ProjectUsecase) Archive(ctx context.Context, id, userID string) (*doma
 		return nil, fmt.Errorf("project.Archive: %w", err)
 	}
 
-	project.Status = domain.ProjectStatusArchived
-	project.UpdatedAt = time.Now()
+	project.Archive()
 
 	if err := uc.projectRepo.Update(ctx, project); err != nil {
 		return nil, fmt.Errorf("project.Archive: %w", err)
@@ -172,8 +156,7 @@ func (uc *ProjectUsecase) Restore(ctx context.Context, id, userID string) (*doma
 		return nil, fmt.Errorf("project.Restore: %w", err)
 	}
 
-	project.Status = domain.ProjectStatusActive
-	project.UpdatedAt = time.Now()
+	project.Restore()
 
 	if err := uc.projectRepo.Update(ctx, project); err != nil {
 		return nil, fmt.Errorf("project.Restore: %w", err)
