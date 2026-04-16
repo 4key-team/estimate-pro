@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/VDV001/estimate-pro/backend/internal/modules/document/domain"
-	"github.com/VDV001/estimate-pro/backend/internal/modules/testutil"
+	"github.com/VDV001/estimate-pro/backend/internal/testutil"
 )
 
 // helpers
