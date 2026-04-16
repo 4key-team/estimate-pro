@@ -160,16 +160,6 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.WorkspaceID == "" || req.Name == "" {
-		sharedErrors.BadRequest(w, "workspace_id and name are required")
-		return
-	}
-
-	if len(req.Name) > 255 {
-		sharedErrors.BadRequest(w, "name too long (max 255)")
-		return
-	}
-
 	project, err := h.uc.Create(r.Context(), usecase.CreateProjectInput{
 		WorkspaceID: req.WorkspaceID,
 		Name:        req.Name,
@@ -177,7 +167,16 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		UserID:      userID,
 	})
 	if err != nil {
-		sharedErrors.InternalError(w, "failed to create project")
+		switch {
+		case errors.Is(err, domain.ErrInvalidProjectName),
+			errors.Is(err, domain.ErrMissingWorkspace),
+			errors.Is(err, domain.ErrMissingCreator):
+			sharedErrors.BadRequest(w, err.Error())
+		case errors.Is(err, domain.ErrWorkspaceNotFound):
+			sharedErrors.NotFound(w, "workspace not found")
+		default:
+			sharedErrors.InternalError(w, "failed to create project")
+		}
 		return
 	}
 

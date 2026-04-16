@@ -28,13 +28,13 @@ type CreateProjectInput struct {
 }
 
 func (uc *ProjectUsecase) Create(ctx context.Context, input CreateProjectInput) (*domain.Project, error) {
-	if _, err := uc.workspaceRepo.GetByID(ctx, input.WorkspaceID); err != nil {
-		return nil, fmt.Errorf("project.Create: %w", err)
-	}
-
 	project, err := domain.NewProject(input.WorkspaceID, input.Name, input.Description, input.UserID)
 	if err != nil {
 		return nil, err
+	}
+
+	if _, err := uc.workspaceRepo.GetByID(ctx, input.WorkspaceID); err != nil {
+		return nil, fmt.Errorf("project.Create: %w", err)
 	}
 
 	if err := uc.projectRepo.Create(ctx, project); err != nil {
