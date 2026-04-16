@@ -167,9 +167,10 @@ func main() {
 	notifyUC := notifyUsecase.New(notifRepository, prefRepository, deliveryLogRepo, memberLister, emailSender, telegramSender)
 
 	// Handlers
-	authH := authHandler.New(authUC)
+	authH := authHandler.New(ctx, authUC)
 	memberUC := projectUsecase.NewMemberUsecase(memberRepo, projectRepository, &userFinderAdapter{repo: userRepo})
-	projectH := projectHandler.New(projectUC, memberUC, workspaceRepo)
+	workspaceUC := projectUsecase.NewWorkspaceUsecase(workspaceRepo)
+	projectH := projectHandler.New(projectUC, memberUC, workspaceUC)
 	documentH := documentHandler.New(documentUC)
 	estimationH := estimationHandler.New(estimationUC, &memberRoleAdapter{memberRepo})
 
@@ -241,7 +242,7 @@ func main() {
 	botH := botHandler.New(botUC, cfg.TelegramBot.WebhookSecret)
 
 	// Module routes
-	authRateLimiter := middleware.RateLimit(10, time.Minute) // 10 requests per minute per IP
+	authRateLimiter := middleware.RateLimit(ctx, 10, time.Minute) // 10 requests per minute per IP
 	authH.Register(r, jwtService, authRateLimiter)
 	oauthH.Register(r)
 	wsH.Register(r)
