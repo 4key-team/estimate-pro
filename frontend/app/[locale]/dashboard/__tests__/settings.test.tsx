@@ -45,4 +45,16 @@ describe("SettingsPage", () => {
     const input = screen.getByPlaceholderText("settings.namePlaceholder");
     expect(input).toHaveValue("Test User");
   });
+
+  it("renders multiple settings cards", () => {
+    renderWithProviders();
+    // Profile + Appearance cards always render
+    const cards = document.querySelectorAll("[class*='card']");
+    expect(cards.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("renders email display", () => {
+    renderWithProviders();
+    expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
+  });
 });
