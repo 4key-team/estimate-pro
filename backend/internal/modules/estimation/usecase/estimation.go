@@ -23,7 +23,17 @@ type CreateInput struct {
 	ProjectID         string
 	DocumentVersionID string
 	UserID            string
-	Items             []*domain.EstimationItem
+	Items             []CreateItemInput
+}
+
+// CreateItemInput — транспорт из handler в usecase. Не является доменной
+// сущностью; валидируется в NewEstimationItem.
+type CreateItemInput struct {
+	TaskName    string
+	MinHours    float64
+	LikelyHours float64
+	MaxHours    float64
+	Note        string
 }
 
 func (uc *EstimationUsecase) Create(ctx context.Context, input CreateInput) (*domain.EstimationWithItems, error) {
