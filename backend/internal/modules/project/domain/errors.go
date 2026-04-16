@@ -6,9 +6,12 @@ package domain
 import "errors"
 
 var (
-	ErrProjectNotFound    = errors.New("project not found")
-	ErrWorkspaceNotFound  = errors.New("workspace not found")
-	ErrMemberNotFound     = errors.New("member not found")
-	ErrMemberAlreadyAdded = errors.New("member already added to project")
-	ErrInsufficientRole   = errors.New("insufficient role for this action")
+	ErrProjectNotFound       = errors.New("project not found")
+	ErrWorkspaceNotFound     = errors.New("workspace not found")
+	ErrMemberNotFound        = errors.New("member not found")
+	ErrMemberAlreadyAdded    = errors.New("member already added to project")
+	ErrInsufficientRole      = errors.New("insufficient role for this action")
+	ErrInvalidWorkspaceName  = errors.New("workspace name must be 1..255 characters")
+	ErrMissingOwner          = errors.New("workspace owner is required")
+	ErrWorkspaceForbidden    = errors.New("only workspace owner can modify")
 )
