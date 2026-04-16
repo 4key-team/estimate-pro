@@ -2,6 +2,7 @@ package notify_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,17 +14,28 @@ import (
 // --- Mock NotificationRepository ---
 
 type mockNotifyRepo struct {
+	mu      sync.Mutex
 	created []*domain.Notification
 }
 
 func (m *mockNotifyRepo) Create(_ context.Context, n *domain.Notification) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.created = append(m.created, n)
 	return nil
 }
 
 func (m *mockNotifyRepo) CreateBatch(_ context.Context, notifications []*domain.Notification) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.created = append(m.created, notifications...)
 	return nil
+}
+
+func (m *mockNotifyRepo) createdLen() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.created)
 }
 
 func (m *mockNotifyRepo) ListByUser(_ context.Context, _ string, _, _ int) ([]*domain.Notification, int, error) {
@@ -84,7 +96,7 @@ func TestDispatcher_HandleEvent_KnownEvent(t *testing.T) {
 	d.HandleEvent("member.added", "proj-1", "actor-1")
 	d.Shutdown()
 
-	if len(notifyRepo.created) == 0 {
+	if notifyRepo.createdLen() == 0 {
 		t.Error("expected notifications to be created")
 	}
 }
@@ -101,7 +113,7 @@ func TestDispatcher_HandleEvent_UnknownEvent(t *testing.T) {
 	d.HandleEvent("unknown.event", "proj-1", "actor-1")
 	d.Shutdown()
 
-	if len(notifyRepo.created) != 0 {
+	if notifyRepo.createdLen() != 0 {
 		t.Error("expected no notifications for unknown event")
 	}
 }
@@ -154,7 +166,7 @@ func TestDispatcher_AllEventTypes(t *testing.T) {
 			d.HandleEvent(evt, "proj-1", "a")
 			d.Shutdown()
 
-			if len(notifyRepo.created) == 0 {
+			if notifyRepo.createdLen() == 0 {
 				t.Errorf("expected notifications for event %q", evt)
 			}
 		})
