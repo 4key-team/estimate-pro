@@ -42,6 +42,10 @@ jobs:
         working-directory: backend
         run: go vet ./...
 
+      - name: Architecture gates
+        working-directory: backend
+        run: ./scripts/arch-check.sh
+
       - name: Test
         working-directory: backend
         run: go test -race -coverprofile=coverage.out ./...

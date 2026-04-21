@@ -35,6 +35,18 @@ export const handlers = [
     HttpResponse.json({ id: "u1", name: "Updated Name", email: "test@test.com" }),
   ),
 
+  http.post(`${API}/auth/avatar`, () =>
+    HttpResponse.json({ avatar_url: "http://localhost:9000/avatars/u1.jpg" }),
+  ),
+
+  http.post(`${API}/auth/forgot-password`, () =>
+    HttpResponse.json({ message: "ok" }),
+  ),
+
+  http.post(`${API}/auth/reset-password`, () =>
+    HttpResponse.json({ message: "ok" }),
+  ),
+
   // Projects
   http.get(`${API}/projects`, () =>
     HttpResponse.json({
@@ -186,6 +198,40 @@ export const handlers = [
   http.get(`${API}/workspaces`, () =>
     HttpResponse.json([
       { id: "w1", name: "Default Workspace" },
+    ]),
+  ),
+
+  http.patch(`${API}/workspaces/:id`, ({ params }) =>
+    HttpResponse.json({ id: params.id, name: "Renamed Workspace" }),
+  ),
+
+  // Estimation detail
+  http.get(`${API}/projects/:id/estimations/:estId`, () =>
+    HttpResponse.json({
+      id: "e1",
+      status: "draft",
+      items: [
+        { id: "i1", task_name: "Task 1", min_hours: 1, likely_hours: 2, max_hours: 4, sort_order: 0 },
+      ],
+    }),
+  ),
+
+  // User search
+  http.get(`${API}/auth/search`, () =>
+    HttpResponse.json([
+      { id: "u3", name: "Found User", email: "found@test.com" },
+    ]),
+  ),
+
+  http.get(`${API}/auth/colleagues`, () =>
+    HttpResponse.json([
+      { id: "u2", name: "Colleague", email: "colleague@test.com" },
+    ]),
+  ),
+
+  http.get(`${API}/auth/recently-added`, () =>
+    HttpResponse.json([
+      { id: "u4", name: "Recent", email: "recent@test.com" },
     ]),
   ),
 ];

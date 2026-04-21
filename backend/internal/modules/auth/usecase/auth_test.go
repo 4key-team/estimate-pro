@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,10 +16,13 @@ import (
 // --- Mock UserRepository ---
 
 type mockUserRepo struct {
-	createFn     func(ctx context.Context, user *domain.User) error
-	getByIDFn    func(ctx context.Context, id string) (*domain.User, error)
-	getByEmailFn func(ctx context.Context, email string) (*domain.User, error)
-	updateFn     func(ctx context.Context, user *domain.User) error
+	createFn           func(ctx context.Context, user *domain.User) error
+	getByIDFn          func(ctx context.Context, id string) (*domain.User, error)
+	getByEmailFn       func(ctx context.Context, email string) (*domain.User, error)
+	updateFn           func(ctx context.Context, user *domain.User) error
+	searchFn           func(ctx context.Context, query, excludeUserID string, limit int) ([]*domain.UserSearchResult, error)
+	listColleaguesFn   func(ctx context.Context, userID string, limit int) ([]*domain.UserSearchResult, error)
+	listRecentlyAddedFn func(ctx context.Context, addedByUserID string, limit int) ([]*domain.UserSearchResult, error)
 }
 
 func (m *mockUserRepo) Create(ctx context.Context, user *domain.User) error {
@@ -49,15 +53,24 @@ func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
-func (m *mockUserRepo) Search(_ context.Context, _ string, _ string, _ int) ([]*domain.UserSearchResult, error) {
+func (m *mockUserRepo) Search(ctx context.Context, query string, excludeUserID string, limit int) ([]*domain.UserSearchResult, error) {
+	if m.searchFn != nil {
+		return m.searchFn(ctx, query, excludeUserID, limit)
+	}
 	return nil, nil
 }
 
-func (m *mockUserRepo) ListColleagues(_ context.Context, _ string, _ int) ([]*domain.UserSearchResult, error) {
+func (m *mockUserRepo) ListColleagues(ctx context.Context, userID string, limit int) ([]*domain.UserSearchResult, error) {
+	if m.listColleaguesFn != nil {
+		return m.listColleaguesFn(ctx, userID, limit)
+	}
 	return nil, nil
 }
 
-func (m *mockUserRepo) ListRecentlyAdded(_ context.Context, _ string, _ int) ([]*domain.UserSearchResult, error) {
+func (m *mockUserRepo) ListRecentlyAdded(ctx context.Context, addedByUserID string, limit int) ([]*domain.UserSearchResult, error) {
+	if m.listRecentlyAddedFn != nil {
+		return m.listRecentlyAddedFn(ctx, addedByUserID, limit)
+	}
 	return nil, nil
 }
 
@@ -105,19 +118,33 @@ func (m *mockTokenStore) DeleteAll(_ context.Context, userID string) error {
 	return nil
 }
 
-type mockAvatarStorage struct{}
+type mockAvatarStorage struct {
+	uploadFn   func(ctx context.Context, key string, data []byte, contentType string) (string, error)
+	downloadFn func(ctx context.Context, key string) ([]byte, string, error)
+}
 
-func (m *mockAvatarStorage) Upload(_ context.Context, key string, _ []byte, _ string) (string, error) {
+func (m *mockAvatarStorage) Upload(ctx context.Context, key string, data []byte, contentType string) (string, error) {
+	if m.uploadFn != nil {
+		return m.uploadFn(ctx, key, data, contentType)
+	}
 	return "/avatars/" + key, nil
 }
 
-func (m *mockAvatarStorage) Download(_ context.Context, _ string) ([]byte, string, error) {
+func (m *mockAvatarStorage) Download(ctx context.Context, key string) ([]byte, string, error) {
+	if m.downloadFn != nil {
+		return m.downloadFn(ctx, key)
+	}
 	return []byte("fake-image"), "image/jpeg", nil
 }
 
-type mockMembershipChecker struct{}
+type mockMembershipChecker struct {
+	shareProjectFn func(ctx context.Context, userA, userB string) (bool, error)
+}
 
-func (m *mockMembershipChecker) ShareProject(_ context.Context, _, _ string) (bool, error) {
+func (m *mockMembershipChecker) ShareProject(ctx context.Context, userA, userB string) (bool, error) {
+	if m.shareProjectFn != nil {
+		return m.shareProjectFn(ctx, userA, userB)
+	}
 	return true, nil
 }
 
@@ -540,5 +567,813 @@ func TestLogout_InvalidToken_NoError(t *testing.T) {
 	err := uc.Logout(t.Context(), "invalid.token.string")
 	if err != nil {
 		t.Fatalf("expected nil error for invalid token on logout, got: %v", err)
+	}
+}
+
+// --- GetCurrentUser ---
+
+func TestGetCurrentUser(t *testing.T) {
+	tests := []struct {
+		name    string
+		userID  string
+		repo    *mockUserRepo
+		wantErr bool
+	}{
+		{
+			name:   "Found",
+			userID: "user-1",
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, id string) (*domain.User, error) {
+					return &domain.User{ID: id, Email: "alice@example.com", Name: "Alice"}, nil
+				},
+			},
+		},
+		{
+			name:   "NotFound",
+			userID: "nonexistent",
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return nil, domain.ErrUserNotFound
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+			user, err := uc.GetCurrentUser(t.Context(), tc.userID)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if user.ID != tc.userID {
+				t.Errorf("expected ID %q, got %q", tc.userID, user.ID)
+			}
+		})
+	}
+}
+
+// --- UpdateProfile ---
+
+func TestUpdateProfile(t *testing.T) {
+	telegramID := "12345"
+	notifEmail := "notify@example.com"
+	empty := ""
+
+	tests := []struct {
+		name    string
+		input   UpdateProfileInput
+		repo    *mockUserRepo
+		wantErr bool
+		check   func(t *testing.T, user *domain.User)
+	}{
+		{
+			name: "UpdateName",
+			input: UpdateProfileInput{
+				UserID: "user-1",
+				Name:   "New Name",
+			},
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return &domain.User{ID: "user-1", Name: "Old Name", Email: "a@b.com"}, nil
+				},
+			},
+			check: func(t *testing.T, user *domain.User) {
+				if user.Name != "New Name" {
+					t.Errorf("expected name 'New Name', got %q", user.Name)
+				}
+			},
+		},
+		{
+			name: "UpdateTelegramChatID",
+			input: UpdateProfileInput{
+				UserID:         "user-1",
+				TelegramChatID: &telegramID,
+			},
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return &domain.User{ID: "user-1", Name: "Alice", Email: "a@b.com"}, nil
+				},
+			},
+			check: func(t *testing.T, user *domain.User) {
+				if user.TelegramChatID != "12345" {
+					t.Errorf("expected telegram_chat_id '12345', got %q", user.TelegramChatID)
+				}
+			},
+		},
+		{
+			name: "UpdateNotificationEmail",
+			input: UpdateProfileInput{
+				UserID:            "user-1",
+				NotificationEmail: &notifEmail,
+			},
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return &domain.User{ID: "user-1", Name: "Alice", Email: "a@b.com"}, nil
+				},
+			},
+			check: func(t *testing.T, user *domain.User) {
+				if user.NotificationEmail != "notify@example.com" {
+					t.Errorf("expected notification_email 'notify@example.com', got %q", user.NotificationEmail)
+				}
+			},
+		},
+		{
+			name: "ClearTelegramChatID",
+			input: UpdateProfileInput{
+				UserID:         "user-1",
+				TelegramChatID: &empty,
+			},
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return &domain.User{ID: "user-1", Name: "Alice", TelegramChatID: "old-id"}, nil
+				},
+			},
+			check: func(t *testing.T, user *domain.User) {
+				if user.TelegramChatID != "" {
+					t.Errorf("expected empty telegram_chat_id, got %q", user.TelegramChatID)
+				}
+			},
+		},
+		{
+			name: "UserNotFound",
+			input: UpdateProfileInput{
+				UserID: "nonexistent",
+				Name:   "X",
+			},
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return nil, domain.ErrUserNotFound
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "UpdateError",
+			input: UpdateProfileInput{
+				UserID: "user-1",
+				Name:   "X",
+			},
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return &domain.User{ID: "user-1", Name: "Old"}, nil
+				},
+				updateFn: func(_ context.Context, _ *domain.User) error {
+					return fmt.Errorf("db error")
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+			user, err := uc.UpdateProfile(t.Context(), tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tc.check != nil {
+				tc.check(t, user)
+			}
+		})
+	}
+}
+
+// --- UploadAvatar ---
+
+func TestUploadAvatar(t *testing.T) {
+	tests := []struct {
+		name    string
+		repo    *mockUserRepo
+		storage *mockAvatarStorage
+		wantErr bool
+	}{
+		{
+			name: "Success",
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return &domain.User{ID: "user-1", Name: "Alice"}, nil
+				},
+			},
+			storage: &mockAvatarStorage{},
+		},
+		{
+			name: "StorageFailure",
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return &domain.User{ID: "user-1", Name: "Alice"}, nil
+				},
+			},
+			storage: &mockAvatarStorage{
+				uploadFn: func(_ context.Context, _ string, _ []byte, _ string) (string, error) {
+					return "", fmt.Errorf("s3 unavailable")
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "UserNotFound",
+			repo: &mockUserRepo{
+				getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+					return nil, domain.ErrUserNotFound
+				},
+			},
+			storage: &mockAvatarStorage{},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), tc.storage, &mockMembershipChecker{})
+			user, err := uc.UploadAvatar(t.Context(), "user-1", []byte("img-data"), "image/png")
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if user.AvatarURL == "" {
+				t.Error("expected non-empty avatar URL")
+			}
+		})
+	}
+}
+
+// --- GetAvatar ---
+
+func TestGetAvatar(t *testing.T) {
+	tests := []struct {
+		name       string
+		callerID   string
+		targetID   string
+		membership *mockMembershipChecker
+		storage    *mockAvatarStorage
+		wantErr    bool
+	}{
+		{
+			name:       "SelfAccess",
+			callerID:   "user-1",
+			targetID:   "user-1",
+			membership: &mockMembershipChecker{},
+			storage:    &mockAvatarStorage{},
+		},
+		{
+			name:     "SharedProject",
+			callerID: "user-1",
+			targetID: "user-2",
+			membership: &mockMembershipChecker{
+				shareProjectFn: func(_ context.Context, _, _ string) (bool, error) {
+					return true, nil
+				},
+			},
+			storage: &mockAvatarStorage{},
+		},
+		{
+			name:     "AccessDenied",
+			callerID: "user-1",
+			targetID: "user-2",
+			membership: &mockMembershipChecker{
+				shareProjectFn: func(_ context.Context, _, _ string) (bool, error) {
+					return false, nil
+				},
+			},
+			storage: &mockAvatarStorage{},
+			wantErr: true,
+		},
+		{
+			name:     "MembershipCheckError",
+			callerID: "user-1",
+			targetID: "user-2",
+			membership: &mockMembershipChecker{
+				shareProjectFn: func(_ context.Context, _, _ string) (bool, error) {
+					return false, fmt.Errorf("db error")
+				},
+			},
+			storage: &mockAvatarStorage{},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), tc.storage, tc.membership)
+			data, contentType, err := uc.GetAvatar(t.Context(), tc.callerID, tc.targetID)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(data) == 0 {
+				t.Error("expected non-empty data")
+			}
+			if contentType == "" {
+				t.Error("expected non-empty content type")
+			}
+		})
+	}
+}
+
+// --- SearchUsers ---
+
+func TestSearchUsers(t *testing.T) {
+	tests := []struct {
+		name    string
+		repo    *mockUserRepo
+		wantLen int
+		wantErr bool
+	}{
+		{
+			name: "ReturnsResults",
+			repo: &mockUserRepo{
+				searchFn: func(_ context.Context, _ string, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return []*domain.UserSearchResult{
+						{ID: "u1", Email: "a@b.com", Name: "Alice"},
+						{ID: "u2", Email: "c@d.com", Name: "Bob"},
+					}, nil
+				},
+			},
+			wantLen: 2,
+		},
+		{
+			name: "EmptyResults",
+			repo: &mockUserRepo{
+				searchFn: func(_ context.Context, _ string, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return nil, nil
+				},
+			},
+			wantLen: 0,
+		},
+		{
+			name: "Error",
+			repo: &mockUserRepo{
+				searchFn: func(_ context.Context, _ string, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return nil, fmt.Errorf("db error")
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+			results, err := uc.SearchUsers(t.Context(), "alice", "caller-1", 10)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(results) != tc.wantLen {
+				t.Errorf("expected %d results, got %d", tc.wantLen, len(results))
+			}
+		})
+	}
+}
+
+// --- ListColleagues ---
+
+func TestListColleagues(t *testing.T) {
+	tests := []struct {
+		name    string
+		repo    *mockUserRepo
+		wantLen int
+		wantErr bool
+	}{
+		{
+			name: "ReturnsList",
+			repo: &mockUserRepo{
+				listColleaguesFn: func(_ context.Context, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return []*domain.UserSearchResult{
+						{ID: "u1", Name: "Alice"},
+					}, nil
+				},
+			},
+			wantLen: 1,
+		},
+		{
+			name: "EmptyList",
+			repo: &mockUserRepo{
+				listColleaguesFn: func(_ context.Context, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return nil, nil
+				},
+			},
+			wantLen: 0,
+		},
+		{
+			name: "Error",
+			repo: &mockUserRepo{
+				listColleaguesFn: func(_ context.Context, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return nil, fmt.Errorf("db error")
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+			results, err := uc.ListColleagues(t.Context(), "user-1", 10)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(results) != tc.wantLen {
+				t.Errorf("expected %d results, got %d", tc.wantLen, len(results))
+			}
+		})
+	}
+}
+
+// --- ListRecentlyAdded ---
+
+func TestListRecentlyAdded(t *testing.T) {
+	tests := []struct {
+		name    string
+		repo    *mockUserRepo
+		wantLen int
+		wantErr bool
+	}{
+		{
+			name: "ReturnsList",
+			repo: &mockUserRepo{
+				listRecentlyAddedFn: func(_ context.Context, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return []*domain.UserSearchResult{
+						{ID: "u1", Name: "Alice"},
+						{ID: "u2", Name: "Bob"},
+					}, nil
+				},
+			},
+			wantLen: 2,
+		},
+		{
+			name: "Error",
+			repo: &mockUserRepo{
+				listRecentlyAddedFn: func(_ context.Context, _ string, _ int) ([]*domain.UserSearchResult, error) {
+					return nil, fmt.Errorf("db error")
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := New(tc.repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+			results, err := uc.ListRecentlyAdded(t.Context(), "user-1", 10)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(results) != tc.wantLen {
+				t.Errorf("expected %d results, got %d", tc.wantLen, len(results))
+			}
+		})
+	}
+}
+
+// --- OAuthLogin extra branches ---
+
+func TestOAuthLogin_UpdatesExistingUserProfile(t *testing.T) {
+	var updatedUser *domain.User
+	existingUser := &domain.User{ID: "user-1", Email: "e@x.com", Name: "Old Name", AvatarURL: "old-url"}
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return existingUser, nil
+		},
+		updateFn: func(_ context.Context, u *domain.User) error {
+			updatedUser = u
+			return nil
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	result, err := uc.OAuthLogin(t.Context(), OAuthLoginInput{
+		Email:     "e@x.com",
+		Name:      "New Name",
+		AvatarURL: "new-url",
+		Provider:  "google",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.User.Name != "New Name" {
+		t.Errorf("expected name 'New Name', got %q", result.User.Name)
+	}
+	if result.User.AvatarURL != "new-url" {
+		t.Errorf("expected avatar 'new-url', got %q", result.User.AvatarURL)
+	}
+	if updatedUser == nil {
+		t.Fatal("expected Update to be called")
+	}
+}
+
+func TestOAuthLogin_CreateUserError(t *testing.T) {
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, domain.ErrUserNotFound
+		},
+		createFn: func(_ context.Context, _ *domain.User) error {
+			return fmt.Errorf("db error")
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.OAuthLogin(t.Context(), OAuthLoginInput{
+		Email: "new@example.com", Name: "User", Provider: "github",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestOAuthLogin_GetByEmailDBError(t *testing.T) {
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, fmt.Errorf("db connection failed")
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.OAuthLogin(t.Context(), OAuthLoginInput{
+		Email: "a@b.com", Name: "X", Provider: "google",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- Register extra branches ---
+
+func TestRegister_GetByEmailDBError(t *testing.T) {
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, fmt.Errorf("db connection failed")
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.Register(t.Context(), RegisterInput{Email: "a@b.com", Password: "pass", Name: "X"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRegister_CreateUserError(t *testing.T) {
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, domain.ErrUserNotFound
+		},
+		createFn: func(_ context.Context, _ *domain.User) error {
+			return fmt.Errorf("insert failed")
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.Register(t.Context(), RegisterInput{Email: "a@b.com", Password: "pass", Name: "X"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRegister_WorkspaceCreateError(t *testing.T) {
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, domain.ErrUserNotFound
+		},
+	}
+	wsCreator := &mockWorkspaceCreator{
+		createFn: func(_ context.Context, _, _ string) error {
+			return fmt.Errorf("workspace creation failed")
+		},
+	}
+	uc := New(userRepo, wsCreator, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.Register(t.Context(), RegisterInput{Email: "a@b.com", Password: "pass", Name: "X"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- Login extra branch ---
+
+func TestLogin_GetByEmailDBError(t *testing.T) {
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, fmt.Errorf("db connection failed")
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.Login(t.Context(), LoginInput{Email: "a@b.com", Password: "pass"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// Should NOT be ErrInvalidCredentials — it's a different error path
+	if errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Fatal("db error should not be mapped to ErrInvalidCredentials")
+	}
+}
+
+// --- Refresh extra branch: user not found after token valid ---
+
+func TestRefresh_UserNotFound(t *testing.T) {
+	jwtSvc := newTestJWT()
+	store := newMockTokenStore()
+	pair, _ := jwtSvc.GeneratePair("user-gone")
+	store.Save(t.Context(), "user-gone", pair.RefreshID, 7*24*time.Hour)
+
+	userRepo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, domain.ErrUserNotFound
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, jwtSvc, store, &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.Refresh(t.Context(), pair.RefreshToken)
+	if !errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials, got: %v", err)
+	}
+}
+
+// --- ForgotPassword: not configured ---
+
+func TestForgotPassword_NotConfigured(t *testing.T) {
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+	// resetTokenStore is nil — not configured
+
+	out, err := uc.ForgotPassword(t.Context(), "alice@example.com")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if out.Token != "" {
+		t.Fatalf("expected empty token when reset not configured, got %q", out.Token)
+	}
+}
+
+// --- ResetPassword: not configured ---
+
+func TestResetPassword_NotConfigured(t *testing.T) {
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	err := uc.ResetPassword(t.Context(), ResetPasswordInput{Token: "any", NewPassword: "pass"})
+	if err == nil {
+		t.Fatal("expected error when reset not configured")
+	}
+}
+
+// --- ForgotPasswordByUserID: not configured ---
+
+func TestForgotPasswordByUserID_NotConfigured(t *testing.T) {
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.ForgotPasswordByUserID(t.Context(), "user-1")
+	if err == nil {
+		t.Fatal("expected error when reset not configured")
+	}
+}
+
+// --- ResetLink ---
+
+func TestResetLink(t *testing.T) {
+	uc := New(&mockUserRepo{}, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+	uc.SetResetConfig(newMockResetTokenStore(), "https://app.example.com", 30*time.Minute)
+
+	link := uc.ResetLink("test-token-123")
+	expected := "https://app.example.com/reset-password?token=test-token-123"
+	if link != expected {
+		t.Errorf("expected %q, got %q", expected, link)
+	}
+}
+
+// --- SetResetNotifier ---
+
+func TestForgotPassword_WithNotifier(t *testing.T) {
+	resetStore := newMockResetTokenStore()
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return &domain.User{
+				ID:           "user-1",
+				Email:        "alice@example.com",
+				PasswordHash: hashPassword(t, "secret"),
+			}, nil
+		},
+	}
+	uc := New(userRepo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+	uc.SetResetConfig(resetStore, "https://app.example.com", 30*time.Minute)
+
+	notified := make(chan bool, 1)
+	uc.SetResetNotifier(&mockResetNotifier{
+		notifyFn: func(_ context.Context, _, _ string) error {
+			notified <- true
+			return nil
+		},
+	})
+
+	out, err := uc.ForgotPassword(t.Context(), "alice@example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Token == "" {
+		t.Fatal("expected non-empty token")
+	}
+
+	// Wait briefly for the goroutine to fire
+	select {
+	case <-notified:
+		// ok
+	case <-time.After(2 * time.Second):
+		t.Fatal("notifier was not called within timeout")
+	}
+}
+
+// --- mockResetNotifier ---
+
+type mockResetNotifier struct {
+	notifyFn func(ctx context.Context, userID, resetLink string) error
+}
+
+func (m *mockResetNotifier) NotifyReset(ctx context.Context, userID, resetLink string) error {
+	if m.notifyFn != nil {
+		return m.notifyFn(ctx, userID, resetLink)
+	}
+	return nil
+}
+
+// --- OAuthLogin workspace creation error ---
+
+func TestOAuthLogin_WorkspaceCreateError(t *testing.T) {
+	userRepo := &mockUserRepo{
+		getByEmailFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return nil, domain.ErrUserNotFound
+		},
+	}
+	wsCreator := &mockWorkspaceCreator{
+		createFn: func(_ context.Context, _, _ string) error {
+			return fmt.Errorf("workspace error")
+		},
+	}
+	uc := New(userRepo, wsCreator, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.OAuthLogin(t.Context(), OAuthLoginInput{
+		Email: "new@example.com", Name: "User", Provider: "google",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- UploadAvatar: update save error ---
+
+func TestUploadAvatar_SaveError(t *testing.T) {
+	repo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ string) (*domain.User, error) {
+			return &domain.User{ID: "user-1", Name: "Alice"}, nil
+		},
+		updateFn: func(_ context.Context, _ *domain.User) error {
+			return fmt.Errorf("db error")
+		},
+	}
+	uc := New(repo, &mockWorkspaceCreator{}, newTestJWT(), newMockTokenStore(), &mockAvatarStorage{}, &mockMembershipChecker{})
+
+	_, err := uc.UploadAvatar(t.Context(), "user-1", []byte("data"), "image/png")
+	if err == nil {
+		t.Fatal("expected error when update fails")
 	}
 }

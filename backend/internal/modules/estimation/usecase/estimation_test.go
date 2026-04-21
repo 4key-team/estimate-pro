@@ -110,7 +110,7 @@ func TestCreate_Success(t *testing.T) {
 	result, err := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-1",
-		Items: []*domain.EstimationItem{
+		Items: []CreateItemInput{
 			{TaskName: "Backend API", MinHours: 4, LikelyHours: 8, MaxHours: 16},
 			{TaskName: "Frontend UI", MinHours: 2, LikelyHours: 4, MaxHours: 8},
 		},
@@ -157,23 +157,23 @@ func TestCreate_InvalidHours(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		items []*domain.EstimationItem
+		items []CreateItemInput
 	}{
 		{
 			name:  "negative min",
-			items: []*domain.EstimationItem{{TaskName: "T", MinHours: -1, LikelyHours: 4, MaxHours: 8}},
+			items: []CreateItemInput{{TaskName: "T", MinHours: -1, LikelyHours: 4, MaxHours: 8}},
 		},
 		{
 			name:  "min > likely",
-			items: []*domain.EstimationItem{{TaskName: "T", MinHours: 10, LikelyHours: 4, MaxHours: 8}},
+			items: []CreateItemInput{{TaskName: "T", MinHours: 10, LikelyHours: 4, MaxHours: 8}},
 		},
 		{
 			name:  "likely > max",
-			items: []*domain.EstimationItem{{TaskName: "T", MinHours: 2, LikelyHours: 10, MaxHours: 8}},
+			items: []CreateItemInput{{TaskName: "T", MinHours: 2, LikelyHours: 10, MaxHours: 8}},
 		},
 		{
 			name:  "empty task name",
-			items: []*domain.EstimationItem{{TaskName: "", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
+			items: []CreateItemInput{{TaskName: "", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
 		},
 	}
 
@@ -199,7 +199,7 @@ func TestSubmit_Success(t *testing.T) {
 	result, _ := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-1",
-		Items:     []*domain.EstimationItem{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
+		Items:     []CreateItemInput{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
 	})
 
 	err := uc.Submit(t.Context(), result.Estimation.ID, "user-1")
@@ -221,7 +221,7 @@ func TestSubmit_AlreadySubmitted(t *testing.T) {
 	result, _ := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-1",
-		Items:     []*domain.EstimationItem{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
+		Items:     []CreateItemInput{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
 	})
 
 	_ = uc.Submit(t.Context(), result.Estimation.ID, "user-1")
@@ -240,7 +240,7 @@ func TestSubmit_WrongUser(t *testing.T) {
 	result, _ := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-1",
-		Items:     []*domain.EstimationItem{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
+		Items:     []CreateItemInput{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
 	})
 
 	err := uc.Submit(t.Context(), result.Estimation.ID, "user-2")
@@ -257,7 +257,7 @@ func TestDelete_Success(t *testing.T) {
 	result, _ := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-1",
-		Items:     []*domain.EstimationItem{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
+		Items:     []CreateItemInput{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
 	})
 
 	err := uc.Delete(t.Context(), result.Estimation.ID, "user-1")
@@ -279,7 +279,7 @@ func TestDelete_CannotDeleteSubmitted(t *testing.T) {
 	result, _ := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-1",
-		Items:     []*domain.EstimationItem{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
+		Items:     []CreateItemInput{{TaskName: "T", MinHours: 2, LikelyHours: 4, MaxHours: 8}},
 	})
 
 	_ = uc.Submit(t.Context(), result.Estimation.ID, "user-1")
@@ -299,7 +299,7 @@ func TestGetAggregated(t *testing.T) {
 	r1, _ := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-1",
-		Items: []*domain.EstimationItem{
+		Items: []CreateItemInput{
 			{TaskName: "Task A", MinHours: 2, LikelyHours: 4, MaxHours: 8},
 		},
 	})
@@ -308,7 +308,7 @@ func TestGetAggregated(t *testing.T) {
 	r2, _ := uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-2",
-		Items: []*domain.EstimationItem{
+		Items: []CreateItemInput{
 			{TaskName: "Task A", MinHours: 4, LikelyHours: 6, MaxHours: 12},
 		},
 	})
@@ -318,7 +318,7 @@ func TestGetAggregated(t *testing.T) {
 	_, _ = uc.Create(t.Context(), CreateInput{
 		ProjectID: "proj-1",
 		UserID:    "user-3",
-		Items: []*domain.EstimationItem{
+		Items: []CreateItemInput{
 			{TaskName: "Task A", MinHours: 100, LikelyHours: 200, MaxHours: 300},
 		},
 	})
@@ -338,6 +338,54 @@ func TestGetAggregated(t *testing.T) {
 	}
 	if item.EstimatorCount != 2 {
 		t.Errorf("estimator count = %d, want 2", item.EstimatorCount)
+	}
+}
+
+func TestListByProject(t *testing.T) {
+	estRepo := newMockEstimationRepo()
+	itemRepo := newMockItemRepo()
+	uc := New(estRepo, itemRepo)
+
+	// Create two estimations for proj-1 and one for proj-2.
+	_, _ = uc.Create(t.Context(), CreateInput{
+		ProjectID: "proj-1", UserID: "user-1",
+		Items: []CreateItemInput{{TaskName: "T1", MinHours: 1, LikelyHours: 2, MaxHours: 4}},
+	})
+	_, _ = uc.Create(t.Context(), CreateInput{
+		ProjectID: "proj-1", UserID: "user-2",
+		Items: []CreateItemInput{{TaskName: "T2", MinHours: 1, LikelyHours: 2, MaxHours: 4}},
+	})
+	_, _ = uc.Create(t.Context(), CreateInput{
+		ProjectID: "proj-2", UserID: "user-1",
+		Items: []CreateItemInput{{TaskName: "T3", MinHours: 1, LikelyHours: 2, MaxHours: 4}},
+	})
+
+	t.Run("returns estimations for project", func(t *testing.T) {
+		list, err := uc.ListByProject(t.Context(), "proj-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(list) != 2 {
+			t.Errorf("expected 2 estimations, got %d", len(list))
+		}
+	})
+
+	t.Run("empty project returns empty list", func(t *testing.T) {
+		list, err := uc.ListByProject(t.Context(), "proj-999")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(list) != 0 {
+			t.Errorf("expected 0 estimations, got %d", len(list))
+		}
+	})
+}
+
+func TestSubmit_NotFound(t *testing.T) {
+	uc := New(newMockEstimationRepo(), newMockItemRepo())
+	err := uc.Submit(t.Context(), "nonexistent", "user-1")
+	if !errors.Is(err, domain.ErrEstimationNotFound) {
+		t.Errorf("expected ErrEstimationNotFound, got %v", err)
 	}
 }
 

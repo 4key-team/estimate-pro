@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/VDV001/estimate-pro/backend/internal/modules/project/domain"
 )
@@ -30,10 +29,6 @@ type AddMemberInput struct {
 }
 
 func (uc *MemberUsecase) AddMember(ctx context.Context, input AddMemberInput) error {
-	if !input.Role.IsValid() {
-		return fmt.Errorf("member.AddMember: invalid role %q", input.Role)
-	}
-
 	if _, err := uc.projectRepo.GetByID(ctx, input.ProjectID); err != nil {
 		return fmt.Errorf("member.AddMember: %w", err)
 	}
@@ -46,12 +41,9 @@ func (uc *MemberUsecase) AddMember(ctx context.Context, input AddMemberInput) er
 		return domain.ErrInsufficientRole
 	}
 
-	member := &domain.Member{
-		ProjectID: input.ProjectID,
-		UserID:    input.UserID,
-		Role:      input.Role,
-		AddedBy:   input.CallerID,
-		AddedAt:   time.Now(),
+	member, err := domain.NewMember(input.ProjectID, input.UserID, input.Role, input.CallerID)
+	if err != nil {
+		return err
 	}
 	if err := uc.memberRepo.Add(ctx, member); err != nil {
 		return fmt.Errorf("member.AddMember: %w", err)

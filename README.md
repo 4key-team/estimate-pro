@@ -5,7 +5,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.7.0-blue)
+![Version](https://img.shields.io/badge/version-0.10.0-blue)
 
 **Коллаборативная платформа для оценки проектов.**
 
@@ -268,9 +268,18 @@ cd frontend && npx tsc --noEmit
 
 Проект следует [Semantic Versioning](https://semver.org/):
 
-**Текущая версия: `0.7.0`**
+**Текущая версия: `0.10.0`**
 
 ### Changelog
+
+#### v0.10.0 (2026-04-17)
+- DDD-конструкторы для всех 13 domain entities с централизованной валидацией инвариантов
+- Архитектурные гейты: `arch-check.sh` (5 правил), CI gate, PR template с обязательным code-review
+- EmailRateLimiter/RateLimit с context-based graceful shutdown
+- WorkspaceUsecase: handler thin, бизнес-логика в usecase
+- Typed MemoryRole enum, ProfileUpdate с pointer-семантикой
+- Test coverage 70%+ (backend + frontend), testcontainers-go
+- Bugfixes: CreateProject 500→400, goroutine leaks, data race в dispatcher
 
 #### v0.7.0 (2026-03-25)
 - **UI/UX Design Concept**: `frontend/design/concept.pen` — 12 экранов (6 страниц × light/dark)

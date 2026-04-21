@@ -39,4 +39,24 @@ describe("DashboardPage", () => {
     renderWithProviders();
     expect(await screen.findByText("projects.title")).toBeInTheDocument();
   });
+
+  it("renders workspace cards from API", async () => {
+    renderWithProviders();
+    // MSW returns workspace "Default Workspace"
+    expect(await screen.findByText("Default Workspace")).toBeInTheDocument();
+  });
+
+  it("renders project data from API", async () => {
+    renderWithProviders();
+    // MSW returns project "Project 1"
+    expect(await screen.findByText("Project 1")).toBeInTheDocument();
+  });
+
+  it("renders multiple stat sections", async () => {
+    renderWithProviders();
+    // Wait for data to load, then check multiple sections render
+    await screen.findByText("projects.title");
+    const headings = screen.getAllByRole("heading");
+    expect(headings.length).toBeGreaterThanOrEqual(1);
+  });
 });

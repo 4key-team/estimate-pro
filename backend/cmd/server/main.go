@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,6 +28,7 @@ import (
 	"github.com/VDV001/estimate-pro/backend/internal/shared/middleware"
 	"github.com/VDV001/estimate-pro/backend/pkg/jwt"
 
+	authDomain "github.com/VDV001/estimate-pro/backend/internal/modules/auth/domain"
 	authHandler "github.com/VDV001/estimate-pro/backend/internal/modules/auth/handler"
 	authRepo "github.com/VDV001/estimate-pro/backend/internal/modules/auth/repository"
 	authUsecase "github.com/VDV001/estimate-pro/backend/internal/modules/auth/usecase"
@@ -148,15 +150,27 @@ func main() {
 	// Usecases
 	membershipChecker := authRepo.NewPostgresMembershipChecker(pool)
 	authUC := authUsecase.New(userRepo, &workspaceCreatorAdapter{workspaceRepo}, jwtService, tokenStore, &avatarStorageAdapter{s3Client}, membershipChecker)
+
+	// Password reset wiring
+	resetTokenStore := authRepo.NewRedisResetTokenStore(rdb)
+	resetNotifier := &resetNotifierAdapter{
+		userRepo:       userRepo,
+		emailSender:    emailSender,
+		telegramClient: botTG,
+	}
+	authUC.SetResetConfig(resetTokenStore, cfg.FrontendBaseURL, 15*time.Minute)
+	authUC.SetResetNotifier(resetNotifier)
+
 	projectUC := projectUsecase.New(projectRepository, workspaceRepo, memberRepo)
 	documentUC := documentUsecase.New(docRepository, versionRepo, fileStorage)
 	estimationUC := estimationUsecase.New(estRepository, estItemRepo)
 	notifyUC := notifyUsecase.New(notifRepository, prefRepository, deliveryLogRepo, memberLister, emailSender, telegramSender)
 
 	// Handlers
-	authH := authHandler.New(authUC)
+	authH := authHandler.New(ctx, authUC)
 	memberUC := projectUsecase.NewMemberUsecase(memberRepo, projectRepository, &userFinderAdapter{repo: userRepo})
-	projectH := projectHandler.New(projectUC, memberUC, workspaceRepo)
+	workspaceUC := projectUsecase.NewWorkspaceUsecase(workspaceRepo)
+	projectH := projectHandler.New(projectUC, memberUC, workspaceUC)
 	documentH := documentHandler.New(documentUC)
 	estimationH := estimationHandler.New(estimationUC, &memberRoleAdapter{memberRepo})
 
@@ -223,11 +237,12 @@ func main() {
 		&botMemberAdapter{memberUC: memberUC},
 		&botEstimationAdapter{estimationUC: estimationUC},
 		&botDocumentAdapter{documentUC: documentUC},
+		&botPasswordResetAdapter{authUC: authUC},
 	)
 	botH := botHandler.New(botUC, cfg.TelegramBot.WebhookSecret)
 
 	// Module routes
-	authRateLimiter := middleware.RateLimit(10, time.Minute) // 10 requests per minute per IP
+	authRateLimiter := middleware.RateLimit(ctx, 10, time.Minute) // 10 requests per minute per IP
 	authH.Register(r, jwtService, authRateLimiter)
 	oauthH.Register(r)
 	wsH.Register(r)
@@ -474,4 +489,58 @@ func (a *userFinderAdapter) FindByEmail(ctx context.Context, email string) (stri
 		return "", fmt.Errorf("userFinder.FindByEmail: %w", err)
 	}
 	return user.ID, nil
+}
+
+// resetNotifierAdapter delivers password-reset links via email and Telegram.
+type resetNotifierAdapter struct {
+	userRepo interface {
+		GetByID(ctx context.Context, id string) (*authDomain.User, error)
+	}
+	emailSender interface {
+		Send(ctx context.Context, userID, subject, body string) error
+	}
+	telegramClient interface {
+		SendMarkdown(ctx context.Context, chatID, text string) error
+	}
+}
+
+func (a *resetNotifierAdapter) NotifyReset(ctx context.Context, userID, resetLink string) error {
+	user, err := a.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("resetNotifier: get user: %w", err)
+	}
+
+	// Email delivery
+	subject := "EstimatePro — Password Reset"
+	body := fmt.Sprintf("Click the link to reset your password:\n%s\n\nLink expires in 15 minutes.", resetLink)
+	if err := a.emailSender.Send(ctx, userID, subject, body); err != nil {
+		slog.Warn("reset email failed", "user_id", userID, "error", err)
+	}
+
+	// Telegram delivery (if user has linked Telegram via bot)
+	if user.TelegramChatID != "" {
+		tgMsg := fmt.Sprintf("*EstimatePro — Сброс пароля*\n\nСсылка для сброса пароля:\n%s\n\n_Ссылка действительна 15 минут._", resetLink)
+		if err := a.telegramClient.SendMarkdown(ctx, user.TelegramChatID, tgMsg); err != nil {
+			slog.Warn("reset telegram failed", "user_id", userID, "error", err)
+		}
+	}
+
+	return nil
+}
+
+// botPasswordResetAdapter implements botDomain.PasswordResetManager using existing auth usecase.
+type botPasswordResetAdapter struct {
+	authUC *authUsecase.AuthUsecase
+}
+
+func (a *botPasswordResetAdapter) RequestReset(ctx context.Context, userID string) (string, error) {
+	link, err := a.authUC.ForgotPasswordByUserID(ctx, userID)
+	if err != nil {
+		// Translate auth domain error to bot domain error (no cross-module import).
+		if errors.Is(err, authDomain.ErrNoPassword) {
+			return "", botDomain.ErrNoPassword
+		}
+		return "", err
+	}
+	return link, nil
 }

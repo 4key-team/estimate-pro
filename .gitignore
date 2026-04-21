@@ -31,6 +31,9 @@ backend/server
 .taskmaster/
 CLAUDE.md
 
+# Plans (local only)
+docs/plans/
+
 # Test
 coverage.out
 coverage.html

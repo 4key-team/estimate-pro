@@ -4,10 +4,13 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -20,11 +23,15 @@ import (
 )
 
 type Handler struct {
-	uc *usecase.AuthUsecase
+	uc      *usecase.AuthUsecase
+	resetRL *middleware.EmailRateLimiter
 }
 
-func New(uc *usecase.AuthUsecase) *Handler {
-	return &Handler{uc: uc}
+func New(ctx context.Context, uc *usecase.AuthUsecase) *Handler {
+	return &Handler{
+		uc:      uc,
+		resetRL: middleware.NewEmailRateLimiter(ctx, 3, 10*time.Minute),
+	}
 }
 
 func (h *Handler) Register(r chi.Router, jwtService *jwt.Service, rateLimitMW ...func(http.Handler) http.Handler) {
@@ -36,6 +43,8 @@ func (h *Handler) Register(r chi.Router, jwtService *jwt.Service, rateLimitMW ..
 			r.Post("/login", h.Login)
 			r.Post("/register", h.RegisterUser)
 			r.Post("/refresh", h.Refresh)
+			r.Post("/forgot-password", h.ForgotPassword)
+			r.Post("/reset-password", h.ResetPasswordHandler)
 		})
 		r.Post("/logout", h.Logout)
 		r.Group(func(r chi.Router) {
@@ -356,5 +365,73 @@ func (h *Handler) GetAvatar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", imgContentType)
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Write(imgData)
+}
+
+func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req forgotPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sharedErrors.BadRequest(w, "invalid request body")
+		return
+	}
+
+	if req.Email == "" {
+		sharedErrors.BadRequest(w, "email is required")
+		return
+	}
+
+	// Per-email rate limiting — silent: always return 200 to avoid revealing info.
+	if !h.resetRL.Allow(req.Email) {
+		response.WriteJSON(w, http.StatusOK, map[string]string{
+			"message": "If an account exists, a reset link has been sent",
+		})
+		return
+	}
+
+	// Always return 200 — never reveal email existence, even on internal error.
+	if _, err := h.uc.ForgotPassword(r.Context(), req.Email); err != nil {
+		slog.Warn("forgot-password internal error", "error", err)
+	}
+
+	response.WriteJSON(w, http.StatusOK, map[string]string{
+		"message": "If an account exists, a reset link has been sent",
+	})
+}
+
+func (h *Handler) ResetPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	var req resetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sharedErrors.BadRequest(w, "invalid request body")
+		return
+	}
+
+	if req.Token == "" {
+		sharedErrors.BadRequest(w, "token is required")
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		sharedErrors.BadRequest(w, "password must be at least 8 characters")
+		return
+	}
+	if len(req.NewPassword) > 72 {
+		sharedErrors.BadRequest(w, "password must be at most 72 characters")
+		return
+	}
+
+	err := h.uc.ResetPassword(r.Context(), usecase.ResetPasswordInput{
+		Token:       req.Token,
+		NewPassword: req.NewPassword,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrResetTokenNotFound) {
+			sharedErrors.BadRequest(w, "invalid or expired reset token")
+			return
+		}
+		sharedErrors.InternalError(w, "failed to reset password")
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, map[string]string{
+		"message": "Password has been reset successfully",
+	})
 }
 

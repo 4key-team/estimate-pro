@@ -45,3 +45,7 @@ build-backend:
 # Lint
 lint-backend:
     cd backend && golangci-lint run ./...
+
+# Architectural gates (TDD+DDD+Clean Architecture)
+arch-check:
+    cd backend && ./scripts/arch-check.sh
