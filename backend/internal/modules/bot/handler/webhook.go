@@ -58,16 +58,22 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writeOK(w)
+
+	go h.processUpdate(context.WithoutCancel(ctx), &update)
+}
+
+func (h *Handler) processUpdate(ctx context.Context, update *telegram.Update) {
 	switch {
 	case update.CallbackQuery != nil:
-		if err := h.botUC.ProcessCallback(ctx, &update); err != nil {
+		if err := h.botUC.ProcessCallback(ctx, update); err != nil {
 			slog.ErrorContext(ctx, "Handler.HandleWebhook: ProcessCallback failed",
 				slog.Int64("update_id", update.UpdateID),
 				slog.String("error", err.Error()),
 			)
 		}
 	case update.Message != nil:
-		if err := h.botUC.ProcessMessage(ctx, &update); err != nil {
+		if err := h.botUC.ProcessMessage(ctx, update); err != nil {
 			slog.ErrorContext(ctx, "Handler.HandleWebhook: ProcessMessage failed",
 				slog.Int64("update_id", update.UpdateID),
 				slog.String("error", err.Error()),
@@ -78,8 +84,6 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			slog.Int64("update_id", update.UpdateID),
 		)
 	}
-
-	writeOK(w)
 }
 
 func writeOK(w http.ResponseWriter) {
