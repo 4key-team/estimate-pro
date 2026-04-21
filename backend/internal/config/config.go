@@ -53,6 +53,7 @@ type TelegramBotConfig struct {
 	Token         string
 	WebhookSecret string
 	BotUsername   string
+	ProxyURL      string
 }
 
 type LLMDefaultConfig struct {
@@ -96,6 +97,7 @@ func Load() Config {
 			Token:         os.Getenv("TELEGRAM_BOT_TOKEN"),
 			WebhookSecret: os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
 			BotUsername:   os.Getenv("TELEGRAM_BOT_USERNAME"),
+			ProxyURL:      os.Getenv("TELEGRAM_PROXY_URL"),
 		},
 		FrontendBaseURL: cmp.Or(os.Getenv("FRONTEND_BASE_URL"), "http://localhost:3000"),
 		LLM: LLMDefaultConfig{

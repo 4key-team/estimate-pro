@@ -137,7 +137,11 @@ func main() {
 	botPrefsRepo := botRepo.NewPostgresUserPrefsRepository(pool)
 
 	// Bot Telegram client
-	botTG := botTelegram.NewClient(cfg.TelegramBot.Token)
+	botTG, err := botTelegram.NewClientWithProxy(cfg.TelegramBot.Token, cfg.TelegramBot.ProxyURL)
+	if err != nil {
+		slog.Error("failed to create telegram bot client", "error", err)
+		os.Exit(1)
+	}
 
 	// Composio client + external senders
 	composioClient := composio.NewClient(cfg.Composio.APIKey)

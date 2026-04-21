@@ -9,10 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/VDV001/estimate-pro/backend/internal/modules/bot/domain"
+	"golang.org/x/net/proxy"
 )
 
 // Client is a Telegram Bot API client.
@@ -29,6 +32,64 @@ func NewClient(token string) *Client {
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		baseURL:    fmt.Sprintf("https://api.telegram.org/bot%s", token),
 	}
+}
+
+// NewClientWithProxy creates a new Telegram Bot API client with optional SOCKS5 proxy support.
+func NewClientWithProxy(token, proxyURL string) (*Client, error) {
+	httpClient, err := newHTTPClient(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("telegram.NewClientWithProxy: %w", err)
+	}
+
+	return &Client{
+		token:      token,
+		httpClient: httpClient,
+		baseURL:    fmt.Sprintf("https://api.telegram.org/bot%s", token),
+	}, nil
+}
+
+func newHTTPClient(proxyURL string) (*http.Client, error) {
+	if proxyURL == "" {
+		return &http.Client{Timeout: 30 * time.Second}, nil
+	}
+
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse proxy URL: %w", err)
+	}
+	if u.Host == "" {
+		return nil, fmt.Errorf("proxy URL host is required")
+	}
+	if u.Scheme != "socks5" && u.Scheme != "socks5h" {
+		return nil, fmt.Errorf("unsupported proxy scheme %q", u.Scheme)
+	}
+
+	var auth *proxy.Auth
+	if u.User != nil {
+		password, _ := u.User.Password()
+		auth = &proxy.Auth{
+			User:     u.User.Username(),
+			Password: password,
+		}
+	}
+
+	forward := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	dialer, err := proxy.SOCKS5("tcp", u.Host, auth, forward)
+	if err != nil {
+		return nil, fmt.Errorf("create SOCKS5 dialer: %w", err)
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.Dial = dialer.Dial
+
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}, nil
 }
 
 // SendMessage sends a plain text message to a chat.

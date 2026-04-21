@@ -6,11 +6,11 @@ package telegram
 import (
 	"encoding/json"
 	"io"
-
-	"github.com/VDV001/estimate-pro/backend/internal/modules/bot/domain"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/VDV001/estimate-pro/backend/internal/modules/bot/domain"
 )
 
 func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
@@ -289,5 +289,34 @@ func TestGetFileURL_Success(t *testing.T) {
 	want := "https://api.telegram.org/file/bottest-token/documents/file_0.pdf"
 	if url != want {
 		t.Errorf("url = %q, want %q", url, want)
+	}
+}
+
+func TestNewClientWithProxy_SOCKS5Success(t *testing.T) {
+	client, err := NewClientWithProxy("test-token", "socks5://user:pass@127.0.0.1:1080")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	transport, ok := client.httpClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport type = %T, want *http.Transport", client.httpClient.Transport)
+	}
+	if transport.Dial == nil {
+		t.Fatal("expected custom dial function for SOCKS5 proxy")
+	}
+}
+
+func TestNewClientWithProxy_UnsupportedScheme(t *testing.T) {
+	_, err := NewClientWithProxy("test-token", "http://127.0.0.1:3128")
+	if err == nil {
+		t.Fatal("expected error for unsupported proxy scheme, got nil")
+	}
+}
+
+func TestNewClientWithProxy_MissingHost(t *testing.T) {
+	_, err := NewClientWithProxy("test-token", "socks5://")
+	if err == nil {
+		t.Fatal("expected error for missing proxy host, got nil")
 	}
 }
