@@ -4,14 +4,31 @@
 package telegram
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/VDV001/estimate-pro/backend/internal/modules/bot/domain"
 )
+
+func captureDefaultLogger(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	buf := &bytes.Buffer{}
+	prev := slog.Default()
+	logger := slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+	t.Cleanup(func() {
+		slog.SetDefault(prev)
+	})
+
+	return buf
+}
 
 func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
@@ -304,6 +321,45 @@ func TestNewClientWithProxy_SOCKS5Success(t *testing.T) {
 	}
 	if transport.Dial == nil {
 		t.Fatal("expected custom dial function for SOCKS5 proxy")
+	}
+}
+
+func TestNewClient_LogsWithoutProxy(t *testing.T) {
+	logs := captureDefaultLogger(t)
+
+	_ = NewClient("test-token")
+
+	if !strings.Contains(logs.String(), `"proxy_enabled":false`) {
+		t.Fatalf("expected proxy_enabled=false in logs, got %s", logs.String())
+	}
+}
+
+func TestNewClientWithProxy_LogsProxySettings(t *testing.T) {
+	logs := captureDefaultLogger(t)
+
+	_, err := NewClientWithProxy("test-token", "socks5://user:pass@127.0.0.1:1080")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := logs.String()
+	if !strings.Contains(output, `"proxy_enabled":true`) {
+		t.Fatalf("expected proxy_enabled=true in logs, got %s", output)
+	}
+	if !strings.Contains(output, `"proxy_scheme":"socks5"`) {
+		t.Fatalf("expected proxy scheme in logs, got %s", output)
+	}
+	if !strings.Contains(output, `"proxy_host":"127.0.0.1:1080"`) {
+		t.Fatalf("expected proxy host in logs, got %s", output)
+	}
+	if !strings.Contains(output, `"proxy_username":"user"`) {
+		t.Fatalf("expected proxy username in logs, got %s", output)
+	}
+	if !strings.Contains(output, `"proxy_has_password":true`) {
+		t.Fatalf("expected proxy password flag in logs, got %s", output)
+	}
+	if strings.Contains(output, "pass@") || strings.Contains(output, `"password":"pass"`) {
+		t.Fatalf("raw proxy password leaked to logs: %s", output)
 	}
 }
 

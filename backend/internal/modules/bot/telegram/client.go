@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-    "net"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -28,11 +28,13 @@ type Client struct {
 
 // NewClient creates a new Telegram Bot API client.
 func NewClient(token string) *Client {
-	return &Client{
+	client := &Client{
 		token:      token,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		baseURL:    fmt.Sprintf("https://api.telegram.org/bot%s", token),
 	}
+	logClientInitialization(nil)
+	return client
 }
 
 // NewClientWithProxy creates a new Telegram Bot API client with optional SOCKS5 proxy support.
@@ -42,11 +44,21 @@ func NewClientWithProxy(token, proxyURL string) (*Client, error) {
 		return nil, fmt.Errorf("telegram.NewClientWithProxy: %w", err)
 	}
 
-	return &Client{
+	var proxyConfig *url.URL
+	if proxyURL != "" {
+		proxyConfig, err = url.Parse(proxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("telegram.NewClientWithProxy: parse proxy URL for logging: %w", err)
+		}
+	}
+
+	client := &Client{
 		token:      token,
 		httpClient: httpClient,
 		baseURL:    fmt.Sprintf("https://api.telegram.org/bot%s", token),
-	}, nil
+	}
+	logClientInitialization(proxyConfig)
+	return client, nil
 }
 
 func newHTTPClient(proxyURL string) (*http.Client, error) {
@@ -91,6 +103,34 @@ func newHTTPClient(proxyURL string) (*http.Client, error) {
 		Timeout:   30 * time.Second,
 		Transport: transport,
 	}, nil
+}
+
+func logClientInitialization(proxyConfig *url.URL) {
+	attrs := []any{
+		slog.Duration("timeout", 30*time.Second),
+	}
+
+	if proxyConfig == nil {
+		attrs = append(attrs, slog.Bool("proxy_enabled", false))
+		slog.Info("telegram.Client initialized", attrs...)
+		return
+	}
+
+	username := ""
+	hasPassword := false
+	if proxyConfig.User != nil {
+		username = proxyConfig.User.Username()
+		_, hasPassword = proxyConfig.User.Password()
+	}
+
+	attrs = append(attrs,
+		slog.Bool("proxy_enabled", true),
+		slog.String("proxy_scheme", proxyConfig.Scheme),
+		slog.String("proxy_host", proxyConfig.Host),
+		slog.String("proxy_username", username),
+		slog.Bool("proxy_has_password", hasPassword),
+	)
+	slog.Info("telegram.Client initialized", attrs...)
 }
 
 // SendMessage sends a plain text message to a chat.
