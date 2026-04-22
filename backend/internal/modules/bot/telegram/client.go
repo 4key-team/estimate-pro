@@ -97,7 +97,14 @@ func newHTTPClient(proxyURL string) (*http.Client, error) {
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
-	transport.Dial = dialer.Dial
+	transport.Dial = nil
+	if contextDialer, ok := dialer.(proxy.ContextDialer); ok {
+		transport.DialContext = contextDialer.DialContext
+	} else {
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.Dial(network, addr)
+		}
+	}
 
 	return &http.Client{
 		Timeout:   30 * time.Second,

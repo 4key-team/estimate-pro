@@ -319,8 +319,11 @@ func TestNewClientWithProxy_SOCKS5Success(t *testing.T) {
 	if !ok {
 		t.Fatalf("transport type = %T, want *http.Transport", client.httpClient.Transport)
 	}
-	if transport.Dial == nil {
-		t.Fatal("expected custom dial function for SOCKS5 proxy")
+	if transport.DialContext == nil {
+		t.Fatal("expected custom dial context function for SOCKS5 proxy")
+	}
+	if transport.Proxy != nil {
+		t.Fatal("expected HTTP proxy function to be disabled when SOCKS5 dialer is configured")
 	}
 }
 
