@@ -132,6 +132,7 @@ func main() {
 	// Bot module repositories
 	botSessionRepo := botRepo.NewPostgresSessionRepository(pool)
 	botLinkRepo := botRepo.NewPostgresUserLinkRepository(pool)
+	botUserResolver := botRepo.NewPostgresUserResolver(pool)
 	botLLMConfigRepo := botRepo.NewPostgresLLMConfigRepository(pool)
 	botMemoryRepo := botRepo.NewPostgresMemoryRepository(pool)
 	botPrefsRepo := botRepo.NewPostgresUserPrefsRepository(pool)
@@ -225,6 +226,7 @@ func main() {
 	botUC := botUsecase.New(
 		botSessionRepo,
 		botLinkRepo,
+		botUserResolver,
 		botLLMConfigRepo,
 		botMemoryRepo,
 		botPrefsRepo,
